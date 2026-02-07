@@ -1,2 +1,1 @@
-pub mod graphql;
-pub mod user;
+pub mod user_service;
