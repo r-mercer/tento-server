@@ -5,3 +5,7 @@ edition = "2024"
 
 [dependencies]
 actix-web = "4.12.1"
+bson = "3.1.0"
+juniper = "0.17.1"
+mongodb = "3.5.1"
+serde = "1.0.228"
