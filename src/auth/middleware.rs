@@ -55,12 +55,10 @@ where
         let service = Rc::clone(&self.service);
 
         Box::pin(async move {
-            // Extract JWT service from app data
             let jwt_service = req
                 .app_data::<actix_web::web::Data<crate::auth::JwtService>>()
                 .ok_or_else(|| ErrorUnauthorized("JWT service not configured"))?;
 
-            // Extract token from Authorization header
             let auth_header = req
                 .headers()
                 .get(AUTHORIZATION)
@@ -71,22 +69,18 @@ where
                 .strip_prefix("Bearer ")
                 .ok_or_else(|| ErrorUnauthorized("Invalid authorization header format"))?;
 
-            // Validate token and extract claims
             let claims = jwt_service
                 .validate_token(token)
                 .map_err(|_| ErrorUnauthorized("Invalid or expired token"))?;
 
-            // Insert claims into request extensions
             req.extensions_mut().insert(claims);
 
-            // Call the next service
             let res = service.call(req).await?;
             Ok(res.map_into_left_body())
         })
     }
 }
 
-// Extractor for authenticated user in handlers
 pub struct AuthenticatedUser(pub Claims);
 
 impl FromRequest for AuthenticatedUser {

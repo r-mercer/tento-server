@@ -1,5 +1,5 @@
-use std::env;
 use secrecy::SecretString;
+use std::env;
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -21,8 +21,9 @@ impl Config {
                 .unwrap_or_else(|_| "mongodb://localhost:27017".to_string()),
             mongo_db_name: env::var("MONGO_DB_NAME").unwrap_or_else(|_| "tento-local".to_string()),
             gh_client_id: env::var("GH_CLIENT_ID").unwrap_or_else(|_| "gh_client_id".to_string()),
-            gh_client_secret: SecretString::from(env::var("GH_CLIENT_SECRET")
-                .unwrap_or_else(|_| "gh_client_secret".to_string())),
+            gh_client_secret: SecretString::from(
+                env::var("GH_CLIENT_SECRET").unwrap_or_else(|_| "gh_client_secret".to_string()),
+            ),
             users_collection: env::var("USERS_COLLECTION").unwrap_or_else(|_| "users".to_string()),
             web_server_host: env::var("WEB_SERVER_HOST")
                 .unwrap_or_else(|_| "localhost".to_string()),
@@ -30,8 +31,10 @@ impl Config {
                 .ok()
                 .and_then(|p| p.parse().ok())
                 .unwrap_or(8080),
-            jwt_secret: SecretString::from(env::var("JWT_SECRET")
-                .unwrap_or_else(|_| "dev_secret_key_change_in_production".to_string())),
+            jwt_secret: SecretString::from(
+                env::var("JWT_SECRET")
+                    .unwrap_or_else(|_| "dev_secret_key_change_in_production".to_string()),
+            ),
             jwt_expiration_hours: env::var("JWT_EXPIRATION_HOURS")
                 .ok()
                 .and_then(|h| h.parse().ok())
@@ -39,34 +42,32 @@ impl Config {
         }
     }
 
-    /// Validate that production-critical configuration is set
-    /// Panics if required secrets are using default values
+    // Copilot validation rules
     pub fn validate_for_production(&self) {
         use secrecy::ExposeSecret;
-        
+
         let jwt_secret = self.jwt_secret.expose_secret();
         let gh_secret = self.gh_client_secret.expose_secret();
-        
-        // Check for dangerous default values
+
         if jwt_secret == "dev_secret_key_change_in_production" {
             panic!(
                 "FATAL: JWT_SECRET is using default value! Set JWT_SECRET environment variable to a secure random string."
             );
         }
-        
+
         if jwt_secret.len() < 32 {
             panic!(
                 "FATAL: JWT_SECRET is too short ({}). Must be at least 32 characters for security.",
                 jwt_secret.len()
             );
         }
-        
+
         if gh_secret == "gh_client_secret" {
             panic!(
                 "FATAL: GH_CLIENT_SECRET is using default value! Set GH_CLIENT_SECRET environment variable."
             );
         }
-        
+
         if self.gh_client_id == "gh_client_id" {
             panic!(
                 "FATAL: GH_CLIENT_ID is using default value! Set GH_CLIENT_ID environment variable."

@@ -24,15 +24,15 @@ async fn graphql_handler(
     http_req: actix_web::HttpRequest,
 ) -> GraphQLResponse {
     let mut request = req.into_inner();
-    
-    // Extract claims from request extensions (set by AuthMiddleware)
+
     if let Some(claims) = http_req.extensions().get::<auth::Claims>() {
         request = request.data(claims.clone());
     }
-    
+
     schema.execute(request).await.into()
 }
 
+// how on earth do I do with this now
 async fn graphql_playground() -> actix_web::Result<actix_web::HttpResponse> {
     Ok(actix_web::HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
@@ -68,9 +68,8 @@ async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     let config = Config::from_env();
-    
-    // Validate production-critical configuration
-    // This will panic if JWT_SECRET or GitHub secrets are using defaults
+
+    // Will panic if secrets aren't set
     if env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string()) != "test" {
         config.validate_for_production();
         log::info!("Configuration validated successfully");
@@ -87,7 +86,11 @@ async fn main() -> std::io::Result<()> {
     let port = config.web_server_port;
 
     log::info!("Starting server at http://{}:{}", host, port);
-    log::info!("GraphQL Playground available at http://{}:{}/playground", host, port);
+    log::info!(
+        "GraphQL Playground available at http://{}:{}/playground",
+        host,
+        port
+    );
 
     HttpServer::new(move || {
         App::new()
@@ -95,11 +98,11 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(schema.clone()))
             .app_data(web::Data::from(jwt_service.clone()))
             .wrap(Logger::default())
-            // Public routes (no authentication required)
+            // Public routes
             .service(handlers::health_check)
             .service(handlers::auth_github_callback)
             .route("/playground", web::get().to(graphql_playground))
-            // Protected routes (authentication required)
+            // Protected routes
             .service(
                 web::scope("")
                     .wrap(AuthMiddleware)
@@ -109,7 +112,7 @@ async fn main() -> std::io::Result<()> {
                     .service(handlers::update_user)
                     .service(handlers::delete_user)
                     .service(handlers::get_quiz)
-                    .route("/graphql", web::post().to(graphql_handler))
+                    .route("/graphql", web::post().to(graphql_handler)),
             )
     })
     .bind((host, port))?

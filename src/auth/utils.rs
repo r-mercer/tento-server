@@ -6,7 +6,6 @@ use crate::{
     models::domain::user::UserRole,
 };
 
-/// Require that the user is an admin
 pub fn require_admin(claims: &Claims) -> AppResult<()> {
     if claims.role != UserRole::Admin {
         return Err(AppError::Unauthorized(
@@ -16,7 +15,6 @@ pub fn require_admin(claims: &Claims) -> AppResult<()> {
     Ok(())
 }
 
-/// Require that the user is either the owner of the resource or an admin
 pub fn require_owner_or_admin(claims: &Claims, resource_owner: &str) -> AppResult<()> {
     if claims.role != UserRole::Admin && claims.sub != resource_owner {
         return Err(AppError::Unauthorized(
@@ -26,7 +24,6 @@ pub fn require_owner_or_admin(claims: &Claims, resource_owner: &str) -> AppResul
     Ok(())
 }
 
-/// Extract claims from GraphQL context
 pub fn extract_claims_from_context(ctx: &Context<'_>) -> AppResult<Claims> {
     ctx.data::<Claims>()
         .cloned()
