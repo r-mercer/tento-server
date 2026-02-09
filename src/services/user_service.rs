@@ -1,110 +1,198 @@
-use actix_web::{HttpResponse, get, post, web};
-use mongodb::{Client, IndexModel, bson::doc, options::IndexOptions};
+use std::sync::Arc;
+use validator::Validate;
 
-use crate::models::user_model::User;
-use crate::config::Config;
-use crate::services::db_helpers::get_users_collection;
-use crate::services::http_helpers::{internal_error, not_found, success_json};
+use crate::{
+    errors::{AppError, AppResult},
+    models::{
+        domain::User,
+        dto::{
+            request::{CreateUserRequest, UpdateUserRequest},
+            response::{CreateUserResponse, DeleteUserResponse, UpdateUserResponse, UserDto},
+        },
+    },
+    repositories::UserRepository,
+};
+pub struct UserService {
+    repository: Arc<dyn UserRepository>,
+}
+impl UserService {
+    pub fn new(repository: Arc<dyn UserRepository>) -> Self {
+        Self { repository }
+    }
+    pub async fn create_user(&self, request: CreateUserRequest) -> AppResult<CreateUserResponse> {
+        request.validate()?;
 
-/// Adds a new user to the "users" collection in the database.
-#[post("/add_user")]
-async fn add_user(
-    client: web::Data<Client>,
-    config: web::Data<Config>,
-    form: web::Form<User>,
-) -> HttpResponse {
-    let collection = get_users_collection(&client, &config);
-    let result = collection.insert_one(form.into_inner()).await;
-    match result {
-        Ok(_) => HttpResponse::Ok().body("user added"),
-        Err(err) => internal_error(err),
+        if let Some(_) = self.repository.find_by_username(&request.username).await? {
+            return Err(AppError::AlreadyExists(format!(
+                "User with username '{}' already exists",
+                request.username
+            )));
+        }
+
+        let user = User::from_request(request);
+        let created_user = self.repository.create(user).await?;
+
+        Ok(CreateUserResponse {
+            user: UserDto::from(created_user),
+            message: "User created successfully".to_string(),
+        })
+    }
+
+    pub async fn get_user(&self, username: &str) -> AppResult<UserDto> {
+        let user = self
+            .repository
+            .find_by_username(username)
+            .await?
+            .ok_or_else(|| {
+                AppError::NotFound(format!("User with username '{}' not found", username))
+            })?;
+
+        Ok(UserDto::from(user))
+    }
+
+    pub async fn get_all_users(&self) -> AppResult<Vec<UserDto>> {
+        let users = self.repository.find_all().await?;
+        Ok(users.into_iter().map(UserDto::from).collect())
+    }
+    pub async fn update_user(
+        &self,
+        username: &str,
+        request: UpdateUserRequest,
+    ) -> AppResult<UpdateUserResponse> {
+        request.validate()?;
+
+        let mut user = self
+            .repository
+            .find_by_username(username)
+            .await?
+            .ok_or_else(|| {
+                AppError::NotFound(format!("User with username '{}' not found", username))
+            })?;
+
+        user.apply_update(request);
+
+        let updated_user = self.repository.update(username, user).await?;
+
+        Ok(UpdateUserResponse {
+            user: UserDto::from(updated_user),
+            message: "User updated successfully".to_string(),
+        })
+    }
+
+    pub async fn delete_user(&self, username: &str) -> AppResult<DeleteUserResponse> {
+        self.repository.delete(username).await?;
+
+        Ok(DeleteUserResponse {
+            message: format!("User '{}' deleted successfully", username),
+        })
     }
 }
 
-/// Gets the user with the supplied username.
-#[get("/get_user/{username}")]
-async fn get_user(
-    client: web::Data<Client>,
-    config: web::Data<Config>,
-    username: web::Path<String>,
-) -> HttpResponse {
-    let username = username.into_inner();
-    let collection = get_users_collection(&client, &config);
-    match collection.find_one(doc! { "username": &username }).await {
-        Ok(Some(user)) => success_json(user),
-        Ok(None) => not_found(format!("No user found with username {username}")),
-        Err(err) => internal_error(err),
-    }
-}
-
-/// Creates an index on the "username" field to force the values to be unique.
-pub async fn create_username_index(client: &Client, config: &Config) {
-    let options = IndexOptions::builder().unique(true).build();
-    let model = IndexModel::builder()
-        .keys(doc! { "username": 1 })
-        .options(options)
-        .build();
-    
-    get_users_collection(client, config)
-        .create_index(model)
-        .await
-        .expect("creating an index should succeed");
-}
-
+// Hopefully Copilot is good at this
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::{test, App};
+    use crate::repositories::UserRepository;
+    use async_trait::async_trait;
+    use mockall::mock;
 
-    fn test_user() -> User {
-        User::test_user_simple("testuser")
+    mock! {
+        pub UserRepo {}
+
+        #[async_trait]
+        impl UserRepository for UserRepo {
+            async fn create(&self, user: User) -> AppResult<User>;
+            async fn find_by_username(&self, username: &str) -> AppResult<Option<User>>;
+            async fn find_all(&self) -> AppResult<Vec<User>>;
+            async fn update(&self, username: &str, user: User) -> AppResult<User>;
+            async fn delete(&self, username: &str) -> AppResult<()>;
+            async fn ensure_indexes(&self) -> AppResult<()>;
+        }
     }
 
-    fn assert_error_status(status: actix_web::http::StatusCode) {
-        assert!(
-            status.is_client_error() || status.is_server_error(),
-            "Expected error status, got: {}",
-            status
-        );
+    fn create_test_request() -> CreateUserRequest {
+        CreateUserRequest {
+            first_name: "John".to_string(),
+            last_name: "Doe".to_string(),
+            username: "johndoe".to_string(),
+            email: "john@example.com".to_string(),
+        }
     }
 
-    #[actix_web::test]
-    async fn test_add_user_endpoint_structure() {
-        let app = test::init_service(App::new().service(add_user)).await;
+    #[tokio::test]
+    async fn test_create_user_success() {
+        let mut mock_repo = MockUserRepo::new();
 
-        let user = test_user();
-        let req = test::TestRequest::post()
-            .uri("/add_user")
-            .set_form(&user)
-            .to_request();
+        // Mock the repository calls
+        mock_repo.expect_find_by_username().returning(|_| Ok(None));
 
-        let resp = test::call_service(&app, req).await;
-        // Without a real DB connection, this will fail, but we're testing the endpoint exists
-        assert_error_status(resp.status());
+        mock_repo.expect_create().returning(|user| Ok(user));
+
+        let service = UserService::new(Arc::new(mock_repo));
+        let request = create_test_request();
+
+        let result = service.create_user(request).await;
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.user.username, "johndoe");
     }
 
-    #[actix_web::test]
-    async fn test_get_user_endpoint_structure() {
-        let app = test::init_service(App::new().service(get_user)).await;
+    #[tokio::test]
+    async fn test_create_user_duplicate() {
+        let mut mock_repo = MockUserRepo::new();
 
-        let req = test::TestRequest::get()
-            .uri("/get_user/testuser")
-            .to_request();
+        // Mock finding an existing user
+        mock_repo
+            .expect_find_by_username()
+            .returning(|_| Ok(Some(User::test_user_simple("johndoe"))));
 
-        let resp = test::call_service(&app, req).await;
-        // Without a real DB connection, this will fail, but we're testing the endpoint exists
-        assert_error_status(resp.status());
+        let service = UserService::new(Arc::new(mock_repo));
+        let request = create_test_request();
+
+        let result = service.create_user(request).await;
+
+        assert!(result.is_err());
+        match result {
+            Err(AppError::AlreadyExists(_)) => (),
+            _ => panic!("Expected AlreadyExists error"),
+        }
     }
-}
 
-#[cfg(test)]
-mod config_tests {
-    use super::*;
+    #[tokio::test]
+    async fn test_get_user_not_found() {
+        let mut mock_repo = MockUserRepo::new();
 
-    #[test]
-    fn test_config_usage() {
-        let config = Config::test_config();
-        assert_eq!(config.users_collection, "users");
-        assert!(!config.mongo_db_name.is_empty());
+        mock_repo.expect_find_by_username().returning(|_| Ok(None));
+
+        let service = UserService::new(Arc::new(mock_repo));
+
+        let result = service.get_user("nonexistent").await;
+
+        assert!(result.is_err());
+        match result {
+            Err(AppError::NotFound(_)) => (),
+            _ => panic!("Expected NotFound error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_all_users() {
+        let mut mock_repo = MockUserRepo::new();
+
+        mock_repo.expect_find_all().returning(|| {
+            Ok(vec![
+                User::test_user_simple("user1"),
+                User::test_user_simple("user2"),
+            ])
+        });
+
+        let service = UserService::new(Arc::new(mock_repo));
+
+        let result = service.get_all_users().await;
+
+        assert!(result.is_ok());
+        let users = result.unwrap();
+        assert_eq!(users.len(), 2);
     }
 }

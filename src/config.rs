@@ -1,32 +1,32 @@
 use std::env;
 
-/// Application configuration loaded from environment variables
 #[derive(Clone, Debug)]
 pub struct Config {
     pub mongo_conn_string: String,
     pub mongo_db_name: String,
     pub users_collection: String,
+    pub web_server_host: String,
 }
 
 impl Config {
-    /// Creates a new Config instance from environment variables
-    /// Falls back to default values if environment variables are not set
     pub fn from_env() -> Self {
         Self {
             mongo_conn_string: env::var("MONGO_CONN_STRING")
                 .unwrap_or_else(|_| "mongodb://localhost:27017".to_string()),
             mongo_db_name: env::var("MONGO_DB_NAME").unwrap_or_else(|_| "tento-local".to_string()),
             users_collection: env::var("USERS_COLLECTION").unwrap_or_else(|_| "users".to_string()),
+            web_server_host: env::var("WEB_SERVER_HOST")
+                .unwrap_or_else(|_| "localhost".to_string()),
         }
     }
 
-    /// Creates a test configuration with default values
     #[cfg(test)]
     pub fn test_config() -> Self {
         Self {
             mongo_conn_string: "mongodb://localhost:27017".to_string(),
             mongo_db_name: "tento-test".to_string(),
             users_collection: "users".to_string(),
+            web_server_host: "127.0.0.1".to_string(),
         }
     }
 }

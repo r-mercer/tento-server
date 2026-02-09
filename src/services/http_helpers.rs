@@ -1,21 +1,14 @@
 use actix_web::HttpResponse;
 
-/// Creates an internal server error response
 pub fn internal_error(err: impl std::fmt::Display) -> HttpResponse {
     HttpResponse::InternalServerError().body(err.to_string())
 }
-
-/// Creates a not found error response
 pub fn not_found(message: impl std::fmt::Display) -> HttpResponse {
     HttpResponse::NotFound().body(message.to_string())
 }
-
-/// Creates a success JSON response
 pub fn success_json<T: serde::Serialize>(data: T) -> HttpResponse {
     HttpResponse::Ok().json(data)
 }
-
-/// Creates a bad request error response
 pub fn bad_request(message: impl std::fmt::Display) -> HttpResponse {
     HttpResponse::BadRequest().body(message.to_string())
 }

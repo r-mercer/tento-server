@@ -1,15 +1,14 @@
-use crate::models::user_model::User;
+// Most, if not all of these are written by copilot
+
+use crate::models::domain::User;
 
 #[cfg(test)]
 pub mod fixtures {
     use super::*;
 
-    /// Creates a standard test user
     pub fn test_user() -> User {
         User::new("Test", "User", "testuser", "test@example.com")
     }
-
-    /// Creates a test user with custom username
     pub fn test_user_with_username(username: &str) -> User {
         User::new(
             "Test",
@@ -18,8 +17,6 @@ pub mod fixtures {
             &format!("{}@example.com", username),
         )
     }
-
-    /// Creates multiple test users for testing collections
     pub fn test_users() -> Vec<User> {
         vec![
             User::new("John", "Doe", "johndoe", "john@example.com"),
@@ -32,8 +29,6 @@ pub mod fixtures {
 #[cfg(test)]
 pub mod test_helpers {
     use actix_web::http::StatusCode;
-
-    /// Asserts that a status code represents an error (4xx or 5xx)
     pub fn assert_error_status(status: StatusCode) {
         assert!(
             status.is_client_error() || status.is_server_error(),
@@ -41,8 +36,6 @@ pub mod test_helpers {
             status
         );
     }
-
-    /// Asserts that a status code represents success (2xx)
     pub fn assert_success_status(status: StatusCode) {
         assert!(
             status.is_success(),
