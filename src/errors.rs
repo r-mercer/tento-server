@@ -24,6 +24,19 @@ pub enum AppError {
     InternalError(String),
 }
 
+impl AppError {
+    fn error_code(&self) -> &'static str {
+        match self {
+            AppError::NotFound(_) => "NOT_FOUND",
+            AppError::AlreadyExists(_) => "ALREADY_EXISTS",
+            AppError::ValidationError(_) => "VALIDATION_ERROR",
+            AppError::DatabaseError(_) => "DATABASE_ERROR",
+            AppError::Unauthorized(_) => "UNAUTHORIZED",
+            AppError::InternalError(_) => "INTERNAL_ERROR",
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
     pub error: String,
@@ -67,24 +80,13 @@ impl From<async_graphql::Error> for AppError {
 impl ErrorExtensions for AppError {
     fn extend(&self) -> async_graphql::Error {
         async_graphql::Error::new(self.to_string()).extend_with(|_err, e| {
-            e.set(
-                "code",
-                match self {
-                    AppError::NotFound(_) => "NOT_FOUND",
-                    AppError::AlreadyExists(_) => "ALREADY_EXISTS",
-                    AppError::ValidationError(_) => "VALIDATION_ERROR",
-                    AppError::DatabaseError(_) => "DATABASE_ERROR",
-                    AppError::Unauthorized(_) => "UNAUTHORIZED",
-                    AppError::InternalError(_) => "INTERNAL_ERROR",
-                },
-            );
+            e.set("code", self.error_code());
         })
     }
 }
 
 pub type AppResult<T> = Result<T, AppError>;
 
-// Testing written by copilot
 #[cfg(test)]
 mod tests {
     use super::*;

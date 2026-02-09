@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use futures::TryStreamExt;
+use log::info;
 use mongodb::{
     bson::{doc, Document},
     options::{FindOneAndUpdateOptions, IndexOptions, ReturnDocument},
@@ -94,7 +95,7 @@ impl UserRepository for MongoUserRepository {
             .build();
 
         self.collection.create_index(model).await?;
-        println!("✓ Created unique index on username field");
+        info!("Created unique index on username field");
 
         Ok(())
     }

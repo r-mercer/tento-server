@@ -33,7 +33,6 @@ impl User {
     }
 }
 
-// Test by Copilot
 #[cfg(test)]
 impl User {
     pub fn test_user(username: &str, email: &str) -> Self {

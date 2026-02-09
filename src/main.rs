@@ -1,6 +1,5 @@
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
-use std::env;
 
 pub mod app_state;
 pub mod config;
@@ -59,15 +58,14 @@ async fn main() -> std::io::Result<()> {
 
     let config = Config::from_env();
 
-    let app_state = AppState::new(config)
+    let app_state = AppState::new(config.clone())
         .await
         .expect("Failed to initialize application state");
 
     let schema = create_schema();
 
-    // should be cleaner than this, but kept running into annoying issues
-    let host = env::var("WEB_SERVER_HOST").expect("local host");
-    let port = 8080;
+    let host = config.web_server_host.clone();
+    let port = config.web_server_port;
 
     HttpServer::new(move || {
         App::new()

@@ -26,15 +26,14 @@ impl From<User> for UserDto {
 }
 
 #[derive(Debug, Serialize, SimpleObject)]
-pub struct CreateUserResponse {
-    pub user: UserDto,
+pub struct ApiResponse<T: async_graphql::OutputType> {
+    pub data: T,
     pub message: String,
 }
-#[derive(Debug, Serialize, SimpleObject)]
-pub struct UpdateUserResponse {
-    pub user: UserDto,
-    pub message: String,
-}
+
+pub type CreateUserResponse = ApiResponse<UserDto>;
+pub type UpdateUserResponse = ApiResponse<UserDto>;
+
 #[derive(Debug, Serialize, SimpleObject)]
 pub struct DeleteUserResponse {
     pub message: String,

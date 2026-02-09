@@ -23,7 +23,7 @@ impl UserService {
     pub async fn create_user(&self, request: CreateUserRequest) -> AppResult<CreateUserResponse> {
         request.validate()?;
 
-        if let Some(_) = self.repository.find_by_username(&request.username).await? {
+        if self.repository.find_by_username(&request.username).await?.is_some() {
             return Err(AppError::AlreadyExists(format!(
                 "User with username '{}' already exists",
                 request.username
@@ -34,7 +34,7 @@ impl UserService {
         let created_user = self.repository.create(user).await?;
 
         Ok(CreateUserResponse {
-            user: UserDto::from(created_user),
+            data: UserDto::from(created_user),
             message: "User created successfully".to_string(),
         })
     }
@@ -86,7 +86,7 @@ impl UserService {
         let updated_user = self.repository.update(username, update_doc).await?;
 
         Ok(UpdateUserResponse {
-            user: UserDto::from(updated_user),
+            data: UserDto::from(updated_user),
             message: "User updated successfully".to_string(),
         })
     }
@@ -100,7 +100,6 @@ impl UserService {
     }
 }
 
-// Hopefully Copilot is good at this
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -147,7 +146,7 @@ mod tests {
 
         assert!(result.is_ok());
         let response = result.unwrap();
-        assert_eq!(response.user.username, "johndoe");
+        assert_eq!(response.data.username, "johndoe");
     }
 
     #[tokio::test]

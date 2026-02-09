@@ -6,6 +6,7 @@ pub struct Config {
     pub mongo_db_name: String,
     pub users_collection: String,
     pub web_server_host: String,
+    pub web_server_port: u16,
 }
 
 impl Config {
@@ -17,6 +18,10 @@ impl Config {
             users_collection: env::var("USERS_COLLECTION").unwrap_or_else(|_| "users".to_string()),
             web_server_host: env::var("WEB_SERVER_HOST")
                 .unwrap_or_else(|_| "localhost".to_string()),
+            web_server_port: env::var("WEB_SERVER_PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(8080),
         }
     }
 
@@ -27,6 +32,7 @@ impl Config {
             mongo_db_name: "tento-test".to_string(),
             users_collection: "users".to_string(),
             web_server_host: "127.0.0.1".to_string(),
+            web_server_port: 8080,
         }
     }
 }
