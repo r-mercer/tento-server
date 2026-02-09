@@ -14,6 +14,7 @@ async fn create_user(
     let response = state.user_service.create_user(request.into_inner()).await?;
     Ok(HttpResponse::Created().json(response))
 }
+
 #[get("/api/users/{username}")]
 async fn get_user(
     state: web::Data<AppState>,
@@ -22,11 +23,13 @@ async fn get_user(
     let user = state.user_service.get_user(&username).await?;
     Ok(HttpResponse::Ok().json(user))
 }
+
 #[get("/api/users")]
 async fn get_all_users(state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
     let users = state.user_service.get_all_users().await?;
     Ok(HttpResponse::Ok().json(users))
 }
+
 #[post("/api/users/{username}")]
 async fn update_user(
     state: web::Data<AppState>,
@@ -39,6 +42,7 @@ async fn update_user(
         .await?;
     Ok(HttpResponse::Ok().json(response))
 }
+
 #[actix_web::delete("/api/users/{username}")]
 async fn delete_user(
     state: web::Data<AppState>,
