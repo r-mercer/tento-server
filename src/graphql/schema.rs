@@ -1,11 +1,15 @@
 use async_graphql::{Context, EmptySubscription, Object, Schema as GraphQLSchema};
+use uuid::Uuid;
 
 use crate::{
     app_state::AppState,
     errors::AppResult,
-    models::dto::{
-        request::{CreateUserRequest, UpdateUserRequest},
-        response::{CreateUserResponse, DeleteUserResponse, UpdateUserResponse, UserDto},
+    models::{
+        domain::Quiz,
+        dto::{
+            request::{CreateUserRequest, UpdateUserRequest},
+            response::{CreateUserResponse, DeleteUserResponse, UpdateUserResponse, UserDto},
+        },
     },
 };
 
@@ -22,6 +26,11 @@ impl QueryRoot {
     async fn users(&self, ctx: &Context<'_>) -> AppResult<Vec<UserDto>> {
         let state = ctx.data::<AppState>()?;
         state.user_service.get_all_users().await
+    }
+
+    async fn quiz(&self, ctx: &Context<'_>, id: Uuid) -> AppResult<Quiz> {
+        let state = ctx.data::<AppState>()?;
+        state.quiz_service.get_quiz(&id).await
     }
 }
 

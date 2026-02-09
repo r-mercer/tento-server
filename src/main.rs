@@ -78,6 +78,7 @@ async fn main() -> std::io::Result<()> {
             .service(handlers::get_all_users)
             .service(handlers::update_user)
             .service(handlers::delete_user)
+            .service(handlers::get_quiz)
             .route("/graphql", web::post().to(graphql_handler))
             .route("/playground", web::get().to(graphql_playground))
     })

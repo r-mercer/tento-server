@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use mongodb::bson::doc;
+use std::sync::Arc;
 use validator::Validate;
 
 use crate::{
@@ -23,7 +23,12 @@ impl UserService {
     pub async fn create_user(&self, request: CreateUserRequest) -> AppResult<CreateUserResponse> {
         request.validate()?;
 
-        if self.repository.find_by_username(&request.username).await?.is_some() {
+        if self
+            .repository
+            .find_by_username(&request.username)
+            .await?
+            .is_some()
+        {
             return Err(AppError::AlreadyExists(format!(
                 "User with username '{}' already exists",
                 request.username
@@ -55,6 +60,7 @@ impl UserService {
         let users = self.repository.find_all().await?;
         Ok(users.into_iter().map(UserDto::from).collect())
     }
+
     pub async fn update_user(
         &self,
         username: &str,
