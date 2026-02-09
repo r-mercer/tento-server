@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use futures::TryStreamExt;
 use mongodb::{
-    bson::doc,
-    options::{IndexOptions, ReplaceOptions},
+    bson::{doc, Document},
+    options::{FindOneAndUpdateOptions, IndexOptions, ReturnDocument},
     Collection, IndexModel,
 };
 
@@ -16,7 +16,7 @@ pub trait UserRepository: Send + Sync {
     async fn create(&self, user: User) -> AppResult<User>;
     async fn find_by_username(&self, username: &str) -> AppResult<Option<User>>;
     async fn find_all(&self) -> AppResult<Vec<User>>;
-    async fn update(&self, username: &str, user: User) -> AppResult<User>;
+    async fn update(&self, username: &str, update_doc: Document) -> AppResult<User>;
     async fn delete(&self, username: &str) -> AppResult<()>;
     async fn ensure_indexes(&self) -> AppResult<()>;
 }
@@ -53,24 +53,21 @@ impl UserRepository for MongoUserRepository {
         Ok(users)
     }
 
-    async fn update(&self, username: &str, user: User) -> AppResult<User> {
+    async fn update(&self, username: &str, update_doc: Document) -> AppResult<User> {
         let filter = doc! { "username": username };
-        let options = ReplaceOptions::builder().upsert(false).build();
+        let options = FindOneAndUpdateOptions::builder()
+            .return_document(ReturnDocument::After)
+            .build();
 
-        let result = self
+        let updated_user = self
             .collection
-            .replace_one(filter, &user)
+            .find_one_and_update(filter, update_doc)
             .with_options(options)
             .await?;
 
-        if result.matched_count == 0 {
-            return Err(AppError::NotFound(format!(
-                "User with username '{}' not found",
-                username
-            )));
-        }
-
-        Ok(user)
+        updated_user.ok_or_else(|| {
+            AppError::NotFound(format!("User with username '{}' not found", username))
+        })
     }
 
     async fn delete(&self, username: &str) -> AppResult<()> {

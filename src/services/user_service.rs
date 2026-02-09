@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use mongodb::bson::doc;
 use validator::Validate;
 
 use crate::{
@@ -61,17 +62,28 @@ impl UserService {
     ) -> AppResult<UpdateUserResponse> {
         request.validate()?;
 
-        let mut user = self
-            .repository
-            .find_by_username(username)
-            .await?
-            .ok_or_else(|| {
-                AppError::NotFound(format!("User with username '{}' not found", username))
-            })?;
+        let mut update_doc = doc! {};
+        let mut set_fields = doc! {};
 
-        user.apply_update(request);
+        if let Some(first_name) = request.first_name {
+            set_fields.insert("first_name", first_name);
+        }
+        if let Some(last_name) = request.last_name {
+            set_fields.insert("last_name", last_name);
+        }
+        if let Some(email) = request.email {
+            set_fields.insert("email", email);
+        }
 
-        let updated_user = self.repository.update(username, user).await?;
+        if set_fields.is_empty() {
+            return Err(AppError::ValidationError(
+                "No fields provided to update".to_string(),
+            ));
+        }
+
+        update_doc.insert("$set", set_fields);
+
+        let updated_user = self.repository.update(username, update_doc).await?;
 
         Ok(UpdateUserResponse {
             user: UserDto::from(updated_user),
@@ -104,7 +116,7 @@ mod tests {
             async fn create(&self, user: User) -> AppResult<User>;
             async fn find_by_username(&self, username: &str) -> AppResult<Option<User>>;
             async fn find_all(&self) -> AppResult<Vec<User>>;
-            async fn update(&self, username: &str, user: User) -> AppResult<User>;
+            async fn update(&self, username: &str, update_doc: mongodb::bson::Document) -> AppResult<User>;
             async fn delete(&self, username: &str) -> AppResult<()>;
             async fn ensure_indexes(&self) -> AppResult<()>;
         }
