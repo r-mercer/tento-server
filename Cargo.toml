@@ -1,16 +1,26 @@
 [package]
 name = "tento-server"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
 actix-web = "4.12.1"
+async-graphql = "7.0"
+async-graphql-actix-web = "7.0"
+async-trait = "0.1"
 bson = "3.1.0"
-juniper = "0.17.1"
+chrono = { version = "0.4", features = ["serde"] }
+env_logger = "0.11"
+futures = "0.3"
+lazy_static = "1.4"
 mongodb = "3.5.1"
-serde = "1.0.228"
+regex = "1.10"
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1", features = ["full"] }
+validator = { version = "0.19", features = ["derive"] }
 
 [dev-dependencies]
 actix-rt = "2.10"
-tokio = { version = "1", features = ["macros"] }
+mockall = "0.13"
