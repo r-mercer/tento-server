@@ -1,10 +1,12 @@
 use async_graphql::InputObject;
+use once_cell::sync::Lazy;
 use serde::Deserialize;
 use validator::Validate;
 
-lazy_static::lazy_static! {
-    static ref USERNAME_REGEX: regex::Regex = regex::Regex::new(r"^[a-zA-Z0-9_]+$").unwrap();
-}
+static USERNAME_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
+    regex::Regex::new(r"^[a-zA-Z0-9_]+$")
+        .expect("USERNAME_REGEX is a valid regex pattern")
+});
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
 pub struct CreateUserRequest {

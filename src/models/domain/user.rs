@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::models::dto::request::{CreateUserRequest, UpdateUserRequest};
+use crate::models::dto::request::CreateUserRequest;
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct User {
     pub first_name: String,
@@ -29,17 +29,6 @@ impl User {
             username: request.username,
             email: request.email,
             created_at: Some(Utc::now()),
-        }
-    }
-    pub fn apply_update(&mut self, request: UpdateUserRequest) {
-        if let Some(first_name) = request.first_name {
-            self.first_name = first_name;
-        }
-        if let Some(last_name) = request.last_name {
-            self.last_name = last_name;
-        }
-        if let Some(email) = request.email {
-            self.email = email;
         }
     }
 }
@@ -89,21 +78,5 @@ mod tests {
         let user = User::from_request(request);
         assert_eq!(user.first_name, "Jane");
         assert_eq!(user.username, "janesmith");
-    }
-
-    #[test]
-    fn test_apply_update() {
-        let mut user = User::new("John", "Doe", "johndoe", "john@example.com");
-
-        let update = UpdateUserRequest {
-            first_name: Some("Jonathan".to_string()),
-            last_name: None,
-            email: Some("jonathan@example.com".to_string()),
-        };
-
-        user.apply_update(update);
-        assert_eq!(user.first_name, "Jonathan");
-        assert_eq!(user.last_name, "Doe"); // unchanged
-        assert_eq!(user.email, "jonathan@example.com");
     }
 }
