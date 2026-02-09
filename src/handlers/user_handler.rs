@@ -2,6 +2,7 @@ use actix_web::{get, post, web, HttpResponse};
 
 use crate::{
     app_state::AppState,
+    auth::{require_admin, require_owner_or_admin, AuthenticatedUser},
     errors::AppError,
     models::dto::request::{CreateUserRequest, UpdateUserRequest},
 };
@@ -10,6 +11,7 @@ use crate::{
 async fn create_user(
     state: web::Data<AppState>,
     request: web::Json<CreateUserRequest>,
+    _auth: AuthenticatedUser,  // Require authentication
 ) -> Result<HttpResponse, AppError> {
     let response = state.user_service.create_user(request.into_inner()).await?;
     Ok(HttpResponse::Created().json(response))
@@ -19,13 +21,23 @@ async fn create_user(
 async fn get_user(
     state: web::Data<AppState>,
     username: web::Path<String>,
+    auth: AuthenticatedUser,  // Require authentication
 ) -> Result<HttpResponse, AppError> {
+    // Authorization: Users can view their own profile, admins can view any profile
+    require_owner_or_admin(&auth.0, &username)?;
+    
     let user = state.user_service.get_user(&username).await?;
     Ok(HttpResponse::Ok().json(user))
 }
 
 #[get("/api/users")]
-async fn get_all_users(state: web::Data<AppState>) -> Result<HttpResponse, AppError> {
+async fn get_all_users(
+    state: web::Data<AppState>,
+    auth: AuthenticatedUser,  // Require authentication
+) -> Result<HttpResponse, AppError> {
+    // Authorization: Only admins can list all users
+    require_admin(&auth.0)?;
+    
     let users = state.user_service.get_all_users().await?;
     Ok(HttpResponse::Ok().json(users))
 }
@@ -35,7 +47,11 @@ async fn update_user(
     state: web::Data<AppState>,
     username: web::Path<String>,
     request: web::Json<UpdateUserRequest>,
+    auth: AuthenticatedUser,  // Require authentication
 ) -> Result<HttpResponse, AppError> {
+    // Authorization: Users can update their own profile, admins can update any profile
+    require_owner_or_admin(&auth.0, &username)?;
+    
     let response = state
         .user_service
         .update_user(&username, request.into_inner())
@@ -47,10 +63,15 @@ async fn update_user(
 async fn delete_user(
     state: web::Data<AppState>,
     username: web::Path<String>,
+    auth: AuthenticatedUser,  // Require authentication
 ) -> Result<HttpResponse, AppError> {
+    // Authorization: Users can delete their own account, admins can delete any account
+    require_owner_or_admin(&auth.0, &username)?;
+    
     let response = state.user_service.delete_user(&username).await?;
     Ok(HttpResponse::Ok().json(response))
 }
+
 #[get("/health")]
 async fn health_check() -> HttpResponse {
     HttpResponse::Ok().json(serde_json::json!({

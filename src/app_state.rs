@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
+    auth::JwtService,
     config::Config,
     db::Database,
     errors::AppResult,
@@ -12,6 +13,7 @@ use crate::{
 pub struct AppState {
     pub user_service: Arc<UserService>,
     pub quiz_service: Arc<QuizService>,
+    pub jwt_service: Arc<JwtService>,
     pub config: Arc<Config>,
 }
 
@@ -26,9 +28,15 @@ impl AppState {
         let quiz_repository = Arc::new(MongoQuizRepository::new(&db));
         let quiz_service = Arc::new(QuizService::new(quiz_repository));
         
+        let jwt_service = Arc::new(JwtService::new(
+            &config.jwt_secret,
+            config.jwt_expiration_hours,
+        ));
+        
         Ok(Self {
             user_service,
             quiz_service,
+            jwt_service,
             config: Arc::new(config),
         })
     }

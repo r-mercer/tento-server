@@ -1,14 +1,24 @@
 use actix_web::{get, web, HttpResponse};
 use octocrab::Octocrab;
 use secrecy::ExposeSecret as _;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use crate::{app_state::AppState, errors::AppError};
-// use shuttle_runtime::configtore;
+use crate::{
+    app_state::AppState, 
+    errors::AppError,
+    models::domain::user::User,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct CallbackParams {
     code: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AuthResponse {
+    pub token: String,
+    pub username: String,
+    pub email: String,
 }
 
 #[get("/auth/github/callback")]
@@ -19,12 +29,17 @@ pub async fn auth_github_callback(
     let client_id = &state.config.gh_client_id;
     let client_secret = state.config.gh_client_secret.expose_secret();
 
+    // Exchange code for GitHub access token
     let oauth_client = octocrab::Octocrab::builder()
         .base_uri("https://github.com")
-        .unwrap()
-        .add_header("accept".parse().unwrap(), "application/json".to_string())
+        .map_err(|e| AppError::InternalError(format!("OAuth client error: {}", e)))?
+        .add_header(
+            "accept".parse()
+                .map_err(|e| AppError::InternalError(format!("Invalid header name: {}", e)))?,
+            "application/json".to_string()
+        )
         .build()
-        .unwrap();
+        .map_err(|e| AppError::InternalError(format!("OAuth client build error: {}", e)))?;
 
     let oauth = oauth_client
         .post::<_, serde_json::Value>(
@@ -36,17 +51,45 @@ pub async fn auth_github_callback(
             })),
         )
         .await
-        .unwrap();
+        .map_err(|e| AppError::InternalError(format!("OAuth token exchange failed: {}", e)))?;
 
-    let oauth = serde_json::from_value::<octocrab::auth::OAuth>(oauth.clone())
-        .unwrap_or_else(|_| panic!("couldn't parse OAuth credentials from {oauth:?}"));
+    let oauth_creds = serde_json::from_value::<octocrab::auth::OAuth>(oauth.clone())
+        .map_err(|e| AppError::InternalError(format!("Failed to parse OAuth response: {}", e)))?;
 
+    // Get GitHub user info
     let client = Octocrab::builder()
-        .user_access_token(oauth.access_token.expose_secret())
+        .user_access_token(oauth_creds.access_token.expose_secret())
         .build()
-        .unwrap();
+        .map_err(|e| AppError::InternalError(format!("Failed to build GitHub client: {}", e)))?;
 
-    let user = client.current().user().await.unwrap();
+    let gh_user = client
+        .current()
+        .user()
+        .await
+        .map_err(|e| AppError::InternalError(format!("Failed to fetch GitHub user: {}", e)))?;
 
-    Ok(HttpResponse::Ok().json(user.login))
+    // Create User from GitHub data
+    let github_id = gh_user.id.to_string();
+    let username = gh_user.login.clone();
+    let email = gh_user.email.clone().unwrap_or_else(|| format!("{}@users.noreply.github.com", gh_user.login));
+    
+    let user = User::from_github(
+        github_id,
+        username.clone(),
+        email.clone(),
+        gh_user.name.clone()
+    );
+
+    // Upsert user - creates if new, updates if existing (keeps data fresh)
+    let saved_user = state.user_service.upsert_oauth_user(user).await?;
+
+    // Generate JWT token
+    let token = state.jwt_service.create_token(&saved_user)?;
+
+    Ok(HttpResponse::Ok().json(AuthResponse {
+        token,
+        username: saved_user.username,
+        email: saved_user.email,
+    }))
 }
+

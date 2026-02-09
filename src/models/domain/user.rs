@@ -2,12 +2,24 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::models::dto::request::CreateUserRequest;
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum UserRole {
+    #[default]
+    User,
+    Admin,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct User {
     pub first_name: String,
     pub last_name: String,
     pub username: String,
     pub email: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_id: Option<String>,
+    #[serde(default)]
+    pub role: UserRole,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<DateTime<Utc>>,
 }
@@ -19,6 +31,8 @@ impl User {
             last_name: last_name.to_string(),
             username: username.to_string(),
             email: email.to_string(),
+            github_id: None,
+            role: UserRole::default(),
             created_at: Some(Utc::now()),
         }
     }
@@ -28,6 +42,31 @@ impl User {
             last_name: request.last_name,
             username: request.username,
             email: request.email,
+            github_id: None,
+            role: UserRole::default(),
+            created_at: Some(Utc::now()),
+        }
+    }
+    
+    pub fn from_github(github_id: String, username: String, email: String, name: Option<String>) -> Self {
+        let (first_name, last_name) = if let Some(full_name) = name {
+            let parts: Vec<&str> = full_name.split_whitespace().collect();
+            if parts.len() >= 2 {
+                (parts[0].to_string(), parts[1..].join(" "))
+            } else {
+                (full_name, String::new())
+            }
+        } else {
+            (username.clone(), String::new())
+        };
+        
+        User {
+            first_name,
+            last_name,
+            username,
+            email,
+            github_id: Some(github_id),
+            role: UserRole::default(),
             created_at: Some(Utc::now()),
         }
     }

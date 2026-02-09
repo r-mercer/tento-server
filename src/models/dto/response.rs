@@ -50,6 +50,8 @@ mod tests {
             last_name: "Doe".to_string(),
             username: "johndoe".to_string(),
             email: "john@example.com".to_string(),
+            github_id: None,
+            role: crate::models::domain::user::UserRole::default(),
             created_at: Some(Utc::now()),
         };
 

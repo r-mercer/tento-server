@@ -67,6 +67,11 @@ impl From<mongodb::error::Error> for AppError {
         AppError::DatabaseError(err.to_string())
     }
 }
+impl From<mongodb::bson::ser::Error> for AppError {
+    fn from(err: mongodb::bson::ser::Error) -> Self {
+        AppError::InternalError(format!("BSON serialization error: {}", err))
+    }
+}
 impl From<validator::ValidationErrors> for AppError {
     fn from(err: validator::ValidationErrors) -> Self {
         AppError::ValidationError(err.to_string())

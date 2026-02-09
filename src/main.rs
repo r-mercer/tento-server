@@ -1,7 +1,9 @@
-use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_web::{middleware::Logger, web, App, HttpMessage, HttpServer};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
+use std::env;
 
 pub mod app_state;
+pub mod auth;
 pub mod config;
 pub mod db;
 pub mod errors;
@@ -12,14 +14,23 @@ pub mod repositories;
 pub mod services;
 
 use app_state::AppState;
+use auth::AuthMiddleware;
 use config::Config;
 use graphql::create_schema;
 
 async fn graphql_handler(
     schema: web::Data<graphql::Schema>,
     req: GraphQLRequest,
+    http_req: actix_web::HttpRequest,
 ) -> GraphQLResponse {
-    schema.execute(req.into_inner()).await.into()
+    let mut request = req.into_inner();
+    
+    // Extract claims from request extensions (set by AuthMiddleware)
+    if let Some(claims) = http_req.extensions().get::<auth::Claims>() {
+        request = request.data(claims.clone());
+    }
+    
+    schema.execute(request).await.into()
 }
 
 async fn graphql_playground() -> actix_web::Result<actix_web::HttpResponse> {
@@ -57,30 +68,49 @@ async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     let config = Config::from_env();
+    
+    // Validate production-critical configuration
+    // This will panic if JWT_SECRET or GitHub secrets are using defaults
+    if env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string()) != "test" {
+        config.validate_for_production();
+        log::info!("Configuration validated successfully");
+    }
 
     let app_state = AppState::new(config.clone())
         .await
         .expect("Failed to initialize application state");
 
     let schema = create_schema(app_state.clone());
+    let jwt_service = app_state.jwt_service.clone();
 
     let host = config.web_server_host.clone();
     let port = config.web_server_port;
+
+    log::info!("Starting server at http://{}:{}", host, port);
+    log::info!("GraphQL Playground available at http://{}:{}/playground", host, port);
 
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
             .app_data(web::Data::new(schema.clone()))
+            .app_data(web::Data::from(jwt_service.clone()))
             .wrap(Logger::default())
+            // Public routes (no authentication required)
             .service(handlers::health_check)
-            .service(handlers::create_user)
-            .service(handlers::get_user)
-            .service(handlers::get_all_users)
-            .service(handlers::update_user)
-            .service(handlers::delete_user)
-            .service(handlers::get_quiz)
-            .route("/graphql", web::post().to(graphql_handler))
+            .service(handlers::auth_github_callback)
             .route("/playground", web::get().to(graphql_playground))
+            // Protected routes (authentication required)
+            .service(
+                web::scope("")
+                    .wrap(AuthMiddleware)
+                    .service(handlers::create_user)
+                    .service(handlers::get_user)
+                    .service(handlers::get_all_users)
+                    .service(handlers::update_user)
+                    .service(handlers::delete_user)
+                    .service(handlers::get_quiz)
+                    .route("/graphql", web::post().to(graphql_handler))
+            )
     })
     .bind((host, port))?
     .run()

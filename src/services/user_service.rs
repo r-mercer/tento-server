@@ -104,6 +104,16 @@ impl UserService {
             message: format!("User '{}' deleted successfully", username),
         })
     }
+
+    /// Upsert user from OAuth flow - creates or updates user based on GitHub ID
+    pub async fn upsert_oauth_user(&self, user: User) -> AppResult<User> {
+        self.repository.upsert_by_github_id(user).await
+    }
+
+    /// Find user by GitHub ID (for OAuth lookups)
+    pub async fn find_by_github_id(&self, github_id: &str) -> AppResult<Option<User>> {
+        self.repository.find_by_github_id(github_id).await
+    }
 }
 
 #[cfg(test)]
@@ -120,8 +130,10 @@ mod tests {
         impl UserRepository for UserRepo {
             async fn create(&self, user: User) -> AppResult<User>;
             async fn find_by_username(&self, username: &str) -> AppResult<Option<User>>;
+            async fn find_by_github_id(&self, github_id: &str) -> AppResult<Option<User>>;
             async fn find_all(&self) -> AppResult<Vec<User>>;
             async fn update(&self, username: &str, update_doc: mongodb::bson::Document) -> AppResult<User>;
+            async fn upsert_by_github_id(&self, user: User) -> AppResult<User>;
             async fn delete(&self, username: &str) -> AppResult<()>;
             async fn ensure_indexes(&self) -> AppResult<()>;
         }
