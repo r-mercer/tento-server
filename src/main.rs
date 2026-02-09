@@ -62,7 +62,7 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Failed to initialize application state");
 
-    let schema = create_schema();
+    let schema = create_schema(app_state.clone());
 
     let host = config.web_server_host.clone();
     let port = config.web_server_port;

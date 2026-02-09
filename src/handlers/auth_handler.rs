@@ -17,7 +17,7 @@ pub async fn auth_github_callback(
     web::Query(params): web::Query<CallbackParams>,
 ) -> Result<HttpResponse, AppError> {
     let client_id = &state.config.gh_client_id;
-    let client_secret = &state.config.gh_client_secret;
+    let client_secret = state.config.gh_client_secret.expose_secret();
 
     let oauth_client = octocrab::Octocrab::builder()
         .base_uri("https://github.com")

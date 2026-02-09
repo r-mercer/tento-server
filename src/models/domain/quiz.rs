@@ -1,12 +1,13 @@
+use async_graphql::{Enum, SimpleObject};
 use uuid::Uuid;
 // use bson::{uuid, Uuid};
 use chrono::{DateTime, Utc};
 // use mongodb::bson::Uuid;
 use serde::{Deserialize, Serialize};
 
-use crate::models::{domain::quiz_question::QuizQuestion, dto::request};
+use crate::models::domain::quiz_question::QuizQuestion;
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
 pub struct Quiz {
     pub id: Uuid,
     pub title: String,
@@ -24,7 +25,7 @@ pub struct Quiz {
     pub modified_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Enum, Copy)]
 pub enum QuizStatus {
     Draft,
     Pending,

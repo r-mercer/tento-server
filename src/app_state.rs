@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     db::Database,
     errors::AppResult,
-    repositories::{MongoQuizRepository, MongoUserRepository, QuizRepository, UserRepository},
+    repositories::{MongoQuizRepository, MongoUserRepository, UserRepository},
     services::{quiz_service::QuizService, user_service::UserService},
 };
 

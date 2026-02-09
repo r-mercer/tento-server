@@ -1,8 +1,9 @@
+use async_graphql::{Enum, SimpleObject};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
 pub struct QuizQuestion {
     pub id: Uuid,
     pub title: String,
@@ -19,13 +20,13 @@ pub struct QuizQuestion {
     pub modified_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
 pub struct QuizQuestionOption {
     pub id: Uuid,
     pub text: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Enum, Copy)]
 pub enum QuizQuestionType {
     Single,
     Multi,

@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::{
     db::Database,
-    errors::{AppError, AppResult},
+    errors::AppResult,
     models::domain::Quiz,
 };
 

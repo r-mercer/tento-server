@@ -389,6 +389,7 @@ dependencies = [
  "asynk-strim",
  "base64",
  "bytes",
+ "chrono",
  "fast_chemail",
  "fnv",
  "futures-util",
@@ -406,6 +407,7 @@ dependencies = [
  "static_assertions_next",
  "tempfile",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
