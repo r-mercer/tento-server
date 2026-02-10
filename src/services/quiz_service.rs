@@ -21,10 +21,12 @@ impl QuizService {
             .repository
             .find_by_id(id)
             .await?
-            .ok_or_else(|| {
-                AppError::NotFound(format!("Quiz with id '{}' not found", id))
-            })?;
+            .ok_or_else(|| AppError::NotFound(format!("Quiz with id '{}' not found", id)))?;
 
         Ok(quiz)
+    }
+
+    pub async fn create_quiz() -> AppResult<Quiz> {
+        request.validate()?;
     }
 }

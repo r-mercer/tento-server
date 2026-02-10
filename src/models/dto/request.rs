@@ -1,12 +1,11 @@
 use async_graphql::InputObject;
-use once_cell::sync::Lazy;
 use serde::Deserialize;
 use validator::Validate;
 
-static USERNAME_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
-    regex::Regex::new(r"^[a-zA-Z0-9_]+$")
-        .expect("USERNAME_REGEX is a valid regex pattern")
-});
+// static USERNAME_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
+//     regex::Regex::new(r"^[a-zA-Z0-9_]+$")
+//         .expect("USERNAME_REGEX is a valid regex pattern")
+// });
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
 pub struct CreateUserRequest {
@@ -17,10 +16,10 @@ pub struct CreateUserRequest {
     pub last_name: String,
 
     #[validate(length(min = 3, max = 50))]
-    #[validate(regex(
-        path = "*USERNAME_REGEX",
-        message = "Username must be alphanumeric with underscores"
-    ))]
+    // #[validate(regex(
+    //     path = "*USERNAME_REGEX",
+    //     message = "Username must be alphanumeric with underscores"
+    // ))]
     pub username: String,
 
     #[validate(email(message = "Invalid email format"))]
@@ -37,6 +36,23 @@ pub struct UpdateUserRequest {
 
     #[validate(email(message = "Invalid email format"))]
     pub email: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+pub struct CreateQuizDraftRequest {
+    #[validate(length(min = 1, max = 100))]
+    pub name: String,
+
+    // #[validate(required)]
+    // pub question_count: i16,
+    //
+    // #[validate(required)]
+    // pub required_score: i16,
+    //
+    // #[validate(required)]
+    // pub attempt_limit: i16,
+    #[validate(url)]
+    pub url: String,
 }
 
 #[cfg(test)]
