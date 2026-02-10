@@ -4,7 +4,7 @@ use crate::{
     app_state::AppState,
     auth::{require_admin, require_owner_or_admin, AuthenticatedUser},
     errors::AppError,
-    models::dto::request::{CreateUserRequest, UpdateUserRequest},
+    models::dto::request::{CreateUserRequest, UpdateUserRequest, PaginationParams},
 };
 
 #[post("/api/users")]
@@ -32,15 +32,20 @@ async fn get_user(
 #[get("/api/users")]
 async fn get_all_users(
     state: web::Data<AppState>,
+    query: web::Query<PaginationParams>,
     auth: AuthenticatedUser, // Require authentication
 ) -> Result<HttpResponse, AppError> {
     require_admin(&auth.0)?;
 
-    let users = state.user_service.get_all_users().await?;
-    Ok(HttpResponse::Ok().json(users))
+    let pagination = query.into_inner();
+    let response = state
+        .user_service
+        .get_all_users_paginated(pagination.offset(), pagination.limit())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
 }
 
-#[post("/api/users/{username}")]
+#[actix_web::put("/api/users/{username}")]
 async fn update_user(
     state: web::Data<AppState>,
     username: web::Path<String>,

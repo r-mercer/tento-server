@@ -9,7 +9,10 @@ use crate::{
         domain::Quiz,
         dto::{
             request::{CreateUserRequest, UpdateUserRequest},
-            response::{CreateUserResponse, DeleteUserResponse, UpdateUserResponse, UserDto},
+            response::{
+                CreateUserResponse, DeleteUserResponse, PaginatedResponseUserDto,
+                UpdateUserResponse, UserDto,
+            },
         },
     },
 };
@@ -29,13 +32,24 @@ impl QueryRoot {
         state.user_service.get_user(&username).await
     }
 
-    async fn users(&self, ctx: &Context<'_>) -> AppResult<Vec<UserDto>> {
+    async fn users(
+        &self,
+        ctx: &Context<'_>,
+        offset: Option<i64>,
+        limit: Option<i64>,
+    ) -> AppResult<PaginatedResponseUserDto> {
         let state = ctx.data::<AppState>()?;
         let claims = extract_claims_from_context(ctx)?;
 
         require_admin(&claims)?;
 
-        state.user_service.get_all_users().await
+        let offset = offset.unwrap_or(0).max(0);
+        let limit = limit.unwrap_or(20).clamp(1, 100);
+
+        state
+            .user_service
+            .get_all_users_paginated(offset, limit)
+            .await
     }
 
     async fn quiz(&self, ctx: &Context<'_>, id: ID) -> AppResult<Quiz> {
@@ -103,8 +117,5 @@ pub fn create_schema(app_state: AppState) -> Schema {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_schema_creation() {
-        // Schema creation now requires AppState, which requires async setup
-        // This test is skipped in favor of integration tests
-    }
+    fn test_schema_creation() {}
 }

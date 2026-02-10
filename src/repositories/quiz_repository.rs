@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use mongodb::{bson::doc, Collection};
+use mongodb::{bson::doc, options::IndexOptions, Collection, IndexModel};
 use uuid::Uuid;
 
 use crate::{db::Database, errors::AppResult, models::domain::Quiz};
@@ -18,6 +18,25 @@ impl MongoQuizRepository {
     pub fn new(db: &Database) -> Self {
         let collection = db.get_collection("quizzes");
         Self { collection }
+    }
+
+    pub async fn ensure_indexes(&self) -> AppResult<()> {
+        log::info!("Creating indexes for quizzes collection");
+
+        let id_index = IndexModel::builder()
+            .keys(doc! { "id": 1 })
+            .options(
+                IndexOptions::builder()
+                    .unique(true)
+                    .name("id_unique".to_string())
+                    .build(),
+            )
+            .build();
+
+        self.collection.create_index(id_index).await?;
+
+        log::info!("Successfully created indexes for quizzes collection");
+        Ok(())
     }
 }
 

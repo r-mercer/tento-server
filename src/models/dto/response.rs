@@ -79,10 +79,33 @@ pub type CreateUserResponse = ApiResponse<UserDto>;
 pub type UpdateUserResponse = ApiResponse<UserDto>;
 pub type CreateQuizDraftResponse = ApiResponse<QuizDto>;
 
+#[derive(Debug, Clone, Serialize, SimpleObject)]
+pub struct ChatCompletionResponse {
+    pub content: String,
+    pub model: String,
+}
+
+pub type ChatCompletionApiResponse = ApiResponse<ChatCompletionResponse>;
+
 #[derive(Debug, Serialize, SimpleObject)]
 pub struct DeleteUserResponse {
     pub message: String,
 }
+
+#[derive(Debug, Clone, Serialize, SimpleObject)]
+pub struct PaginationMetadata {
+    pub offset: i64,
+    pub limit: i64,
+    pub total: i64,
+}
+
+#[derive(Debug, Serialize, SimpleObject)]
+pub struct PaginatedResponse<T: async_graphql::OutputType> {
+    pub data: Vec<T>,
+    pub pagination: PaginationMetadata,
+}
+
+pub type PaginatedResponseUserDto = PaginatedResponse<UserDto>;
 
 #[cfg(test)]
 mod tests {

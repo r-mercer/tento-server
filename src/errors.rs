@@ -22,6 +22,9 @@ pub enum AppError {
 
     #[error("Internal server error: {0}")]
     InternalError(String),
+
+    #[error("LLM error: {0}")]
+    LlmError(String),
 }
 
 impl AppError {
@@ -33,6 +36,7 @@ impl AppError {
             AppError::DatabaseError(_) => "DATABASE_ERROR",
             AppError::Unauthorized(_) => "UNAUTHORIZED",
             AppError::InternalError(_) => "INTERNAL_ERROR",
+            AppError::LlmError(_) => "LLM_ERROR",
         }
     }
 }
@@ -52,6 +56,7 @@ impl ResponseError for AppError {
             AppError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             AppError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::LlmError(_) => StatusCode::BAD_GATEWAY,
         }
     }
 
@@ -80,6 +85,11 @@ impl From<validator::ValidationErrors> for AppError {
 impl From<async_graphql::Error> for AppError {
     fn from(err: async_graphql::Error) -> Self {
         AppError::InternalError(err.message)
+    }
+}
+impl From<async_openai::error::OpenAIError> for AppError {
+    fn from(err: async_openai::error::OpenAIError) -> Self {
+        AppError::LlmError(err.to_string())
     }
 }
 impl ErrorExtensions for AppError {

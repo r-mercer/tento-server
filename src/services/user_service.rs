@@ -8,7 +8,7 @@ use crate::{
         domain::User,
         dto::{
             request::{CreateUserRequest, UpdateUserRequest},
-            response::{CreateUserResponse, DeleteUserResponse, UpdateUserResponse, UserDto},
+            response::{CreateUserResponse, DeleteUserResponse, UpdateUserResponse, UserDto, PaginatedResponseUserDto, PaginationMetadata},
         },
     },
     repositories::UserRepository,
@@ -59,6 +59,19 @@ impl UserService {
     pub async fn get_all_users(&self) -> AppResult<Vec<UserDto>> {
         let users = self.repository.find_all().await?;
         Ok(users.into_iter().map(UserDto::from).collect())
+    }
+
+    pub async fn get_all_users_paginated(&self, offset: i64, limit: i64) -> AppResult<PaginatedResponseUserDto> {
+        let (users, total) = self.repository.find_all_paginated(offset, limit).await?;
+        
+        Ok(PaginatedResponseUserDto {
+            data: users.into_iter().map(UserDto::from).collect(),
+            pagination: PaginationMetadata {
+                offset,
+                limit,
+                total,
+            },
+        })
     }
 
     pub async fn update_user(
@@ -132,6 +145,7 @@ mod tests {
             async fn find_by_username(&self, username: &str) -> AppResult<Option<User>>;
             async fn find_by_github_id(&self, github_id: &str) -> AppResult<Option<User>>;
             async fn find_all(&self) -> AppResult<Vec<User>>;
+            async fn find_all_paginated(&self, offset: i64, limit: i64) -> AppResult<(Vec<User>, i64)>;
             async fn update(&self, username: &str, update_doc: mongodb::bson::Document) -> AppResult<User>;
             async fn upsert_by_github_id(&self, user: User) -> AppResult<User>;
             async fn delete(&self, username: &str) -> AppResult<()>;

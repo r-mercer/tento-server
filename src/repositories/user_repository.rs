@@ -18,6 +18,7 @@ pub trait UserRepository: Send + Sync {
     async fn find_by_username(&self, username: &str) -> AppResult<Option<User>>;
     async fn find_by_github_id(&self, github_id: &str) -> AppResult<Option<User>>;
     async fn find_all(&self) -> AppResult<Vec<User>>;
+    async fn find_all_paginated(&self, offset: i64, limit: i64) -> AppResult<(Vec<User>, i64)>;
     async fn update(&self, username: &str, update_doc: Document) -> AppResult<User>;
     async fn upsert_by_github_id(&self, user: User) -> AppResult<User>;
     async fn delete(&self, username: &str) -> AppResult<()>;
@@ -62,6 +63,24 @@ impl UserRepository for MongoUserRepository {
         let cursor = self.collection.find(doc! {}).await?;
         let users: Vec<User> = cursor.try_collect().await?;
         Ok(users)
+    }
+
+    async fn find_all_paginated(&self, offset: i64, limit: i64) -> AppResult<(Vec<User>, i64)> {
+        use mongodb::options::FindOptions;
+        
+        // Get total count
+        let total = self.collection.count_documents(doc! {}).await? as i64;
+        
+        // Get paginated results
+        let find_options = FindOptions::builder()
+            .skip(Some(offset as u64))
+            .limit(Some(limit))
+            .build();
+        
+        let cursor = self.collection.find(doc! {}).with_options(find_options).await?;
+        let users: Vec<User> = cursor.try_collect().await?;
+        
+        Ok((users, total))
     }
 
     async fn update(&self, username: &str, update_doc: Document) -> AppResult<User> {

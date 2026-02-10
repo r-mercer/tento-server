@@ -56,6 +56,43 @@ pub struct CreateQuizDraftRequest {
     pub url: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+pub struct ChatCompletionRequest {
+    #[validate(length(min = 1, max = 10000))]
+    pub prompt: String,
+
+    #[validate(length(min = 1, max = 100))]
+    pub model: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+pub struct PaginationParams {
+    #[validate(range(min = 0))]
+    pub offset: Option<i64>,
+
+    #[validate(range(min = 1, max = 100))]
+    pub limit: Option<i64>,
+}
+
+impl Default for PaginationParams {
+    fn default() -> Self {
+        Self {
+            offset: Some(0),
+            limit: Some(20),
+        }
+    }
+}
+
+impl PaginationParams {
+    pub fn offset(&self) -> i64 {
+        self.offset.unwrap_or(0)
+    }
+
+    pub fn limit(&self) -> i64 {
+        self.limit.unwrap_or(20).min(100)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

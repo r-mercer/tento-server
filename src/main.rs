@@ -32,7 +32,6 @@ async fn graphql_handler(
     schema.execute(request).await.into()
 }
 
-// how on earth do I do with this now
 async fn graphql_playground() -> actix_web::Result<actix_web::HttpResponse> {
     Ok(actix_web::HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
@@ -86,22 +85,32 @@ async fn main() -> std::io::Result<()> {
     let port = config.web_server_port;
 
     log::info!("Starting server at http://{}:{}", host, port);
+    #[cfg(debug_assertions)]
     log::info!(
         "GraphQL Playground available at http://{}:{}/playground",
         host,
         port
     );
+    #[cfg(not(debug_assertions))]
+    log::info!("GraphQL Playground disabled in release mode");
 
     HttpServer::new(move || {
-        App::new()
+        let mut app = App::new()
             .app_data(web::Data::new(app_state.clone()))
             .app_data(web::Data::new(schema.clone()))
             .app_data(web::Data::from(jwt_service.clone()))
             .wrap(Logger::default())
             // Public routes
             .service(handlers::health_check)
-            .service(handlers::auth_github_callback)
-            .route("/playground", web::get().to(graphql_playground))
+            .service(handlers::auth_github_callback);
+        
+        // Conditionally add playground in debug mode only
+        #[cfg(debug_assertions)]
+        {
+            app = app.route("/playground", web::get().to(graphql_playground));
+        }
+        
+        app
             // Protected routes
             .service(
                 web::scope("")
