@@ -6,7 +6,10 @@ use crate::{
     errors::{AppError, AppResult},
     models::{
         domain::Quiz,
-        dto::{request::CreateQuizDraftRequest, response::CreateQuizDraftResponse},
+        dto::{
+            request::CreateQuizDraftRequest,
+            response::{CreateQuizDraftResponse, QuizDto},
+        },
     },
     repositories::QuizRepository,
 };
@@ -30,8 +33,20 @@ impl QuizService {
         Ok(quiz)
     }
 
-    pub async fn create_quiz_draft(&self, request: CreateQuizDraftRequest) -> AppResult<Quiz> {
+    // let user = User::from_request(request);
+    // let created_user = self.repository.create(user).await?;
+    //
+    // Ok(CreateUserResponse {
+    //     data: UserDto::from(created_user),
+    //     message: "User created successfully".to_string(),
+    // })
+    pub async fn create_quiz_draft(
+        &self,
+        request: CreateQuizDraftRequest,
+    ) -> AppResult<CreateQuizDraftResponse> {
         request.validate()?;
+
+        // possibly include if URL has summary or similar if we get there
 
         let quiz = Quiz::new_draft(
             &request.name,
@@ -40,6 +55,11 @@ impl QuizService {
             request.attempt_limit,
             &request.url,
         );
-        Ok(quiz)
+
+        let created_quiz = self.repository.create_quiz_draft(quiz).await?;
+        Ok(CreateQuizDraftResponse {
+            data: QuizDto::from(created_quiz),
+            message: "Draft created successfully".to_string(),
+        })
     }
 }
