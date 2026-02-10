@@ -1,9 +1,13 @@
 use std::sync::Arc;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::{
     errors::{AppError, AppResult},
-    models::domain::Quiz,
+    models::{
+        domain::Quiz,
+        dto::{request::CreateQuizDraftRequest, response::CreateQuizDraftResponse},
+    },
     repositories::QuizRepository,
 };
 
@@ -26,7 +30,16 @@ impl QuizService {
         Ok(quiz)
     }
 
-    pub async fn create_quiz() -> AppResult<Quiz> {
+    pub async fn create_quiz_draft(&self, request: CreateQuizDraftRequest) -> AppResult<Quiz> {
         request.validate()?;
+
+        let quiz = Quiz::new_draft(
+            &request.name,
+            request.question_count,
+            request.required_score,
+            request.attempt_limit,
+            &request.url,
+        );
+        Ok(quiz)
     }
 }

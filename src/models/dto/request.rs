@@ -44,13 +44,14 @@ pub struct CreateQuizDraftRequest {
     pub name: String,
 
     // #[validate(required)]
-    // pub question_count: i16,
+    pub question_count: i16,
     //
     // #[validate(required)]
-    // pub required_score: i16,
+    pub required_score: i16,
     //
     // #[validate(required)]
-    // pub attempt_limit: i16,
+    pub attempt_limit: i16,
+
     #[validate(url)]
     pub url: String,
 }

@@ -1,8 +1,9 @@
 use async_graphql::SimpleObject;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use uuid::Uuid;
 
-use crate::models::domain::User;
+use crate::models::domain::{quiz::QuizStatus, Quiz, QuizQuestion, User};
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct UserDto {
@@ -25,6 +26,49 @@ impl From<User> for UserDto {
     }
 }
 
+#[derive(Debug, Clone, Serialize, SimpleObject)]
+pub struct QuizDto {
+    pub id: Uuid,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub question_count: i16,
+    pub required_score: i16,
+    pub attempt_limit: i16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub topic: Option<String>,
+    pub status: QuizStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub questions: Option<Vec<QuizQuestion>>,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modified_at: Option<DateTime<Utc>>,
+}
+
+impl From<Quiz> for QuizDto {
+    fn from(quiz: Quiz) -> Self {
+        QuizDto {
+            id: quiz.id,
+            name: quiz.name,
+            title: quiz.title,
+            description: quiz.description,
+            question_count: quiz.question_count,
+            required_score: quiz.required_score,
+            attempt_limit: quiz.attempt_limit,
+            topic: quiz.topic,
+            status: quiz.status,
+            questions: quiz.questions,
+            url: quiz.url,
+            created_at: quiz.created_at,
+            modified_at: quiz.modified_at,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, SimpleObject)]
 pub struct ApiResponse<T: async_graphql::OutputType> {
     pub data: T,
@@ -33,6 +77,7 @@ pub struct ApiResponse<T: async_graphql::OutputType> {
 
 pub type CreateUserResponse = ApiResponse<UserDto>;
 pub type UpdateUserResponse = ApiResponse<UserDto>;
+pub type CreateQuizDraftResponse = ApiResponse<QuizDto>;
 
 #[derive(Debug, Serialize, SimpleObject)]
 pub struct DeleteUserResponse {
