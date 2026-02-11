@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::models::dto::request::CreateUserRequest;
 
@@ -12,6 +13,8 @@ pub enum UserRole {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct User {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<uuid::Uuid>,
     pub first_name: String,
     pub last_name: String,
     pub username: String,
@@ -27,6 +30,7 @@ pub struct User {
 impl User {
     pub fn new(first_name: &str, last_name: &str, username: &str, email: &str) -> Self {
         User {
+            id: Some(Uuid::new_v4()),
             first_name: first_name.to_string(),
             last_name: last_name.to_string(),
             username: username.to_string(),
@@ -38,6 +42,7 @@ impl User {
     }
     pub fn from_request(request: CreateUserRequest) -> Self {
         User {
+            id: Some(Uuid::new_v4()),
             first_name: request.first_name,
             last_name: request.last_name,
             username: request.username,
@@ -61,6 +66,7 @@ impl User {
         };
         
         User {
+            id: Some(Uuid::new_v4()),
             first_name,
             last_name,
             username,

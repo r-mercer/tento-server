@@ -30,7 +30,7 @@ impl AppState {
 
         let user_repository = Arc::new(MongoUserRepository::new(&db));
         user_repository.ensure_indexes().await?;
-        let user_service = Arc::new(UserService::new(user_repository));
+        let user_service = Arc::new(UserService::new(user_repository.clone()));
 
         // Initialize agent orchestrator first since quiz_service depends on it
         let agent_job_repository = Arc::new(MongoAgentJobRepository::new(&db));
@@ -39,7 +39,7 @@ impl AppState {
 
         let quiz_repository = Arc::new(MongoQuizRepository::new(&db));
         quiz_repository.ensure_indexes().await?;
-        let quiz_service = Arc::new(QuizService::new(quiz_repository, agent_orchestrator.clone()));
+        let quiz_service = Arc::new(QuizService::new(quiz_repository, user_repository as Arc<dyn UserRepository>, agent_orchestrator.clone()));
 
         let quiz_attempt_repository_mongo = Arc::new(MongoQuizAttemptRepository::new(&db));
         quiz_attempt_repository_mongo.ensure_indexes().await?;

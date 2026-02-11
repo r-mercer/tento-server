@@ -11,19 +11,21 @@ use crate::{
             response::{CreateQuizDraftResponse, CreateQuizDraftResponseData, QuizDto},
         },
     },
-    repositories::QuizRepository,
+    repositories::{QuizRepository, UserRepository},
     services::{agent_orchestrator_service::AgentOrchestrator, orchestrator_steps::create_quiz_generation_steps},
 };
 
 pub struct QuizService {
     repository: Arc<dyn QuizRepository>,
+    user_repository: Arc<dyn UserRepository>,
     orchestrator: Arc<AgentOrchestrator>,
 }
 
 impl QuizService {
-    pub fn new(repository: Arc<dyn QuizRepository>, orchestrator: Arc<AgentOrchestrator>) -> Self {
+    pub fn new(repository: Arc<dyn QuizRepository>, user_repository: Arc<dyn UserRepository>, orchestrator: Arc<AgentOrchestrator>) -> Self {
         Self {
             repository,
+            user_repository,
             orchestrator,
         }
     }
@@ -41,8 +43,20 @@ impl QuizService {
     pub async fn create_quiz_draft(
         &self,
         request: CreateQuizDraftRequest,
+        username: &str,
     ) -> AppResult<CreateQuizDraftResponse> {
         request.validate()?;
+
+        // Look up the user to get their ID
+        let user = self
+            .user_repository
+            .find_by_username(username)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("User '{}' not found", username)))?;
+
+        let user_id = user
+            .id
+            .ok_or_else(|| AppError::InternalError("User does not have an ID".to_string()))?;
 
         let quiz = Quiz::new_draft(
             &request.name,

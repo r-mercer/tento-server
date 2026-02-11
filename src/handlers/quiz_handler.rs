@@ -22,8 +22,8 @@ async fn get_quiz(
 async fn create_quiz_draft(
     state: web::Data<AppState>,
     request: web::Json<CreateQuizDraftRequest>,
-    _auth: AuthenticatedUser,
+    auth: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
-    let response = state.quiz_service.create_quiz_draft(request.into_inner()).await?;
+    let response = state.quiz_service.create_quiz_draft(request.into_inner(), &auth.0.sub).await?;
     Ok(HttpResponse::Created().json(response))
 }
