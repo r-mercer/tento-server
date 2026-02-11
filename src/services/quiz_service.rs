@@ -46,6 +46,7 @@ impl QuizService {
 
         let quiz = Quiz::new_draft(
             &request.name,
+            Uuid::nil(), // TODO: Get from authenticated user
             request.question_count,
             request.required_score,
             request.attempt_limit,
@@ -59,12 +60,12 @@ impl QuizService {
             .orchestrator
             .create_job(steps)
             .await
-            .map_err(|e| AppError::InternalServerError(format!("Job creation failed: {}", e)))?;
+            .map_err(|e| AppError::InternalError(format!("Job creation failed: {}", e)))?;
 
         self.orchestrator
             .start_job(&job_id)
             .await
-            .map_err(|e| AppError::InternalServerError(format!("Job startup failed: {}", e)))?;
+            .map_err(|e| AppError::InternalError(format!("Job startup failed: {}", e)))?;
 
         Ok(CreateQuizDraftResponse {
             data: CreateQuizDraftResponseData {

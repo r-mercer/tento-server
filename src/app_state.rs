@@ -6,9 +6,9 @@ use crate::{
     db::Database,
     errors::AppResult,
     repositories::{
-        summary_document_respository, MongoAgentJobRepository, MongoQuizRepository,
+        MongoAgentJobRepository, MongoQuizRepository,
         MongoQuizAttemptRepository, MongoSummaryDocumentRepository, MongoUserRepository,
-        SummaryDocumentRepository, UserRepository, QuizAttemptRepository,
+        UserRepository, QuizAttemptRepository,
     },
     services::{agent_orchestrator_service::AgentOrchestrator, model_service::ModelService, quiz_service::QuizService, user_service::UserService},
 };
@@ -46,7 +46,7 @@ impl AppState {
         let quiz_attempt_repository: Arc<dyn QuizAttemptRepository> = quiz_attempt_repository_mongo;
 
         let model_service = Arc::new(ModelService::new(&config));
-        let summary_document_respository = Arc::new(MongoSummaryDocumentRepository::new(&db));
+        let _summary_document_respository = Arc::new(MongoSummaryDocumentRepository::new(&db));
 
         let jwt_service = Arc::new(JwtService::new(
             &config.gh_client_secret,

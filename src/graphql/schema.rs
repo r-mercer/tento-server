@@ -285,7 +285,7 @@ impl MutationRoot {
             QuizAttemptService::grade_attempt(&quiz, &input.answers)?;
 
         // Determine if passed
-        let passed = points_earned >= quiz.required_score;
+        let _passed = points_earned >= quiz.required_score;
 
         // Create and persist attempt
         let attempt = QuizAttemptService::create_attempt(
