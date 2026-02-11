@@ -1,6 +1,7 @@
 pub mod quiz;
 pub mod quiz_attempt;
 pub mod quiz_question;
+pub mod summary_document;
 pub mod user;
 pub use quiz::Quiz;
 pub use quiz_attempt::QuizAttempt;
