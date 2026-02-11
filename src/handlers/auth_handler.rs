@@ -1,4 +1,4 @@
-use actix_web::{get, web, HttpResponse};
+use actix_web::{get, post, web, HttpResponse};
 use octocrab::Octocrab;
 use secrecy::ExposeSecret as _;
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ pub struct CallbackParams {
 #[derive(Debug, Serialize)]
 pub struct AuthResponse {
     pub token: String,
+    pub refresh_token: String,
     pub username: String,
     pub email: String,
 }
@@ -81,12 +82,54 @@ pub async fn auth_github_callback(
     // Upsert user
     let saved_user = state.user_service.upsert_oauth_user(user).await?;
 
-    // Generate token
+    // Generate tokens
     let token = state.jwt_service.create_token(&saved_user)?;
+    let refresh_token_str = state.jwt_service.create_refresh_token(&saved_user.username)?;
 
     Ok(HttpResponse::Ok().json(AuthResponse {
         token,
+        refresh_token: refresh_token_str,
         username: saved_user.username,
         email: saved_user.email,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RefreshTokenRequest {
+    pub refresh_token: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RefreshTokenResponse {
+    pub token: String,
+    pub refresh_token: String,
+}
+
+#[post("/auth/refresh")]
+pub async fn refresh_token(
+    state: web::Data<AppState>,
+    request: web::Json<RefreshTokenRequest>,
+) -> Result<HttpResponse, AppError> {
+    // Validate refresh token with detailed error messages
+    let refresh_claims = state
+        .jwt_service
+        .validate_refresh_token(&request.refresh_token)?;
+    
+    // Get full user object from database
+    let user = state
+        .user_service
+        .get_user_for_token(&refresh_claims.sub)
+        .await
+        .map_err(|_| AppError::Unauthorized("User associated with refresh token not found".to_string()))?;
+    
+    // Generate new tokens
+    let new_token = state.jwt_service.create_token(&user)?;
+    let new_refresh_token = state.jwt_service.create_refresh_token(&refresh_claims.sub)?;
+    
+    log::info!("Token refreshed successfully for user: {}", refresh_claims.sub);
+    
+    Ok(HttpResponse::Ok().json(RefreshTokenResponse {
+        token: new_token,
+        refresh_token: new_refresh_token,
     }))
 }

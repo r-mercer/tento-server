@@ -122,7 +122,8 @@ async fn main() -> std::io::Result<()> {
             )
             // Public routes
             .service(handlers::health_check)
-            .service(handlers::auth_github_callback);
+            .service(handlers::auth_github_callback)
+            .service(handlers::refresh_token);
 
         // Conditionally add playground in debug mode only
         #[cfg(debug_assertions)]

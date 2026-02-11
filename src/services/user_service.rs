@@ -127,6 +127,16 @@ impl UserService {
     pub async fn find_by_github_id(&self, github_id: &str) -> AppResult<Option<User>> {
         self.repository.find_by_github_id(github_id).await
     }
+
+    /// Get full User domain object by username (for token generation)
+    pub async fn get_user_for_token(&self, username: &str) -> AppResult<User> {
+        self.repository
+            .find_by_username(username)
+            .await?
+            .ok_or_else(|| {
+                AppError::NotFound(format!("User with username '{}' not found", username))
+            })
+    }
 }
 
 #[cfg(test)]
