@@ -65,6 +65,9 @@ async fn graphql_playground() -> actix_web::Result<actix_web::HttpResponse> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Load .env.local file if it exists
+    dotenvy::from_filename(".env.local").ok();
+
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     let config = Config::from_env();
@@ -104,13 +107,13 @@ async fn main() -> std::io::Result<()> {
             // Public routes
             .service(handlers::health_check)
             .service(handlers::auth_github_callback);
-        
+
         // Conditionally add playground in debug mode only
         #[cfg(debug_assertions)]
         {
             app = app.route("/playground", web::get().to(graphql_playground));
         }
-        
+
         app
             // Protected routes
             .service(

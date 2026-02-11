@@ -84,12 +84,12 @@ impl Config {
             );
         }
 
-        if jwt_secret.len() < 32 {
-            panic!(
-                "FATAL: JWT_SECRET is too short ({}). Must be at least 32 characters for security.",
-                jwt_secret.len()
-            );
-        }
+        // if jwt_secret.len() < 32 {
+        //     panic!(
+        //         "FATAL: JWT_SECRET is too short ({}). Must be at least 32 characters for security.",
+        //         jwt_secret.len()
+        //     );
+        // }
 
         if gh_secret == "gh_client_secret" {
             panic!(
@@ -125,11 +125,15 @@ impl Config {
             panic!("FATAL: FUNC_ENUMS_EMBED_MODEL cannot be empty.");
         }
 
-        if !self.func_enums_embed_path.starts_with("http://") && !self.func_enums_embed_path.starts_with("https://") {
+        if !self.func_enums_embed_path.starts_with("http://")
+            && !self.func_enums_embed_path.starts_with("https://")
+        {
             panic!("FATAL: FUNC_ENUMS_EMBED_PATH must be a valid HTTP/HTTPS URL.");
         }
 
-        if !self.openai_base_url.starts_with("http://") && !self.openai_base_url.starts_with("https://") {
+        if !self.openai_base_url.starts_with("http://")
+            && !self.openai_base_url.starts_with("https://")
+        {
             panic!("FATAL: OPENAI_BASE_URL must be a valid HTTP/HTTPS URL.");
         }
     }

@@ -5,7 +5,10 @@ use crate::{
     config::Config,
     db::Database,
     errors::AppResult,
-    repositories::{MongoQuizRepository, MongoUserRepository, UserRepository},
+    repositories::{
+        summary_document_respository, MongoQuizRepository, MongoSummaryDocumentRepository,
+        MongoUserRepository, SummaryDocumentRepository, UserRepository,
+    },
     services::{model_service::ModelService, quiz_service::QuizService, user_service::UserService},
 };
 
@@ -21,22 +24,23 @@ pub struct AppState {
 impl AppState {
     pub async fn new(config: Config) -> AppResult<Self> {
         let db = Database::connect(&config).await?;
-        
+
         let user_repository = Arc::new(MongoUserRepository::new(&db));
         user_repository.ensure_indexes().await?;
         let user_service = Arc::new(UserService::new(user_repository));
-        
+
         let quiz_repository = Arc::new(MongoQuizRepository::new(&db));
         quiz_repository.ensure_indexes().await?;
         let quiz_service = Arc::new(QuizService::new(quiz_repository));
-        
+
         let model_service = Arc::new(ModelService::new(&config));
-        
+        let summary_document_respository = Arc::new(MongoSummaryDocumentRepository::new(&db));
+
         let jwt_service = Arc::new(JwtService::new(
-            &config.jwt_secret,
+            &config.gh_client_secret,
             config.jwt_expiration_hours,
         ));
-        
+
         Ok(Self {
             user_service,
             quiz_service,
