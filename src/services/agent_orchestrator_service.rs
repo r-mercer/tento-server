@@ -1,11 +1,11 @@
-use mongodb::{bson::doc, Client, Collection, Database};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use chrono::{DateTime, Utc};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-/// Job status stored in MongoDB
+use crate::repositories::AgentJobRepository;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum JobStatus {
@@ -28,7 +28,6 @@ impl std::fmt::Display for JobStatus {
     }
 }
 
-/// Represents a job step to be executed sequentially
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobStep {
     pub id: String,
@@ -67,7 +66,6 @@ impl JobStep {
     }
 }
 
-/// Job document stored in MongoDB
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentJob {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
@@ -111,95 +109,39 @@ impl AgentJob {
     }
 }
 
-/// MongoDB-backed job orchestrator with background worker
+/// Orchestrator service for managing agent jobs with background worker
 pub struct AgentOrchestrator {
-    db: Database,
-    collection: Collection<AgentJob>,
+    repository: Arc<dyn AgentJobRepository>,
     worker_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 impl AgentOrchestrator {
-    /// Create a new orchestrator with MongoDB connection
-    pub async fn new(db: Database) -> Result<Self, mongodb::error::Error> {
-        let collection: Collection<AgentJob> = db.collection("jobs");
-
-        // Create index on job_id for faster lookups
-        collection
-            .create_index(
-                mongodb::IndexModel::builder()
-                    .keys(doc! { "job_id": 1 })
-                    .build(),
-                None,
-            )
-            .await?;
-
-        // Create index on status for worker polling
-        collection
-            .create_index(
-                mongodb::IndexModel::builder()
-                    .keys(doc! { "status": 1 })
-                    .build(),
-                None,
-            )
-            .await?;
-
-        Ok(Self {
-            db,
-            collection,
+    /// Create a new orchestrator with a job repository
+    pub fn new(repository: Arc<dyn AgentJobRepository>) -> Self {
+        Self {
+            repository,
             worker_handle: Arc::new(RwLock::new(None)),
-        })
+        }
     }
 
     /// Create a new job from steps
-    pub async fn create_job(&self, steps: Vec<JobStep>) -> Result<String, mongodb::error::Error> {
-        let job = AgentJob::new(steps);
-        let job_id = job.job_id.clone();
-
-        self.collection.insert_one(&job, None).await?;
-
-        Ok(job_id)
+    pub async fn create_job(&self, steps: Vec<JobStep>) -> Result<String, String> {
+        self.repository.create_job(steps).await
     }
 
     /// Get job by ID
-    pub async fn get_job(&self, job_id: &str) -> Result<Option<AgentJob>, mongodb::error::Error> {
-        self.collection
-            .find_one(doc! { "job_id": job_id }, None)
-            .await
+    pub async fn get_job(&self, job_id: &str) -> Result<Option<AgentJob>, String> {
+        self.repository.get_job(job_id).await
     }
 
     /// Get job status
-    pub async fn get_job_status(&self, job_id: &str) -> Result<Option<JobStatus>, mongodb::error::Error> {
-        let job = self.get_job(job_id).await?;
-        Ok(job.map(|j| j.status))
+    pub async fn get_job_status(&self, job_id: &str) -> Result<Option<JobStatus>, String> {
+        self.repository.get_job_status(job_id).await
     }
 
     /// Start executing a job
     pub async fn start_job(&self, job_id: &str) -> Result<(), String> {
-        let job = self
-            .get_job(job_id)
-            .await
-            .map_err(|e| format!("Failed to fetch job: {}", e))?
-            .ok_or_else(|| format!("Job {} not found", job_id))?;
-
-        if job.status != JobStatus::Pending {
-            return Err(format!("Job is already {}", job.status));
-        }
-
-        self.collection
-            .update_one(
-                doc! { "job_id": job_id },
-                doc! {
-                    "$set": {
-                        "status": "running",
-                        "started_at": Utc::now()
-                    }
-                },
-                None,
-            )
-            .await
-            .map_err(|e| format!("Failed to update job: {}", e))?;
-
-        Ok(())
+        self.repository.start_job(job_id).await
     }
 
     /// Complete current step and advance to next
@@ -208,191 +150,49 @@ impl AgentOrchestrator {
         job_id: &str,
         result: Option<serde_json::Value>,
     ) -> Result<(), String> {
-        let job = self
-            .get_job(job_id)
-            .await
-            .map_err(|e| format!("Failed to fetch job: {}", e))?
-            .ok_or_else(|| format!("Job {} not found", job_id))?;
-
-        if job.status != JobStatus::Running {
-            return Err("Job is not running".to_string());
-        }
-
-        let mut updated_job = job.clone();
-        
-        // Store result if provided
-        if let (Some(step), Some(result_value)) = (updated_job.get_current_step(), result) {
-            updated_job.results.insert(step.id.clone(), result_value);
-        }
-
-        // Move to next step
-        updated_job.current_step_index += 1;
-
-        // Check if completed
-        let new_status = if updated_job.is_complete() {
-            "completed"
-        } else {
-            "running"
-        };
-
-        let update_doc = if updated_job.is_complete() {
-            doc! {
-                "$set": {
-                    "current_step_index": updated_job.current_step_index,
-                    "results": serde_json::to_value(&updated_job.results)
-                        .unwrap_or(serde_json::json!({})),
-                    "status": new_status,
-                    "completed_at": Utc::now(),
-                }
-            }
-        } else {
-            doc! {
-                "$set": {
-                    "current_step_index": updated_job.current_step_index,
-                    "results": serde_json::to_value(&updated_job.results)
-                        .unwrap_or(serde_json::json!({})),
-                    "status": new_status,
-                }
-            }
-        };
-
-        self.collection
-            .update_one(doc! { "job_id": job_id }, update_doc, None)
-            .await
-            .map_err(|e| format!("Failed to update job: {}", e))?;
-
-        Ok(())
+        self.repository.complete_step(job_id, result).await
     }
 
     /// Fail current step with error message
     pub async fn fail_step(&self, job_id: &str, error: String) -> Result<(), String> {
-        let job = self
-            .get_job(job_id)
-            .await
-            .map_err(|e| format!("Failed to fetch job: {}", e))?
-            .ok_or_else(|| format!("Job {} not found", job_id))?;
-
-        if job.status != JobStatus::Running {
-            return Err("Job is not running".to_string());
-        }
-
-        self.collection
-            .update_one(
-                doc! { "job_id": job_id },
-                doc! {
-                    "$set": {
-                        "status": "failed",
-                        "error_message": error,
-                        "completed_at": Utc::now(),
-                    }
-                },
-                None,
-            )
-            .await
-            .map_err(|e| format!("Failed to update job: {}", e))?;
-
-        Ok(())
+        self.repository.fail_step(job_id, error).await
     }
 
     /// Pause a running job
     pub async fn pause_job(&self, job_id: &str) -> Result<(), String> {
-        let job = self
-            .get_job(job_id)
-            .await
-            .map_err(|e| format!("Failed to fetch job: {}", e))?
-            .ok_or_else(|| format!("Job {} not found", job_id))?;
-
-        if job.status != JobStatus::Running {
-            return Err("Job is not running".to_string());
-        }
-
-        self.collection
-            .update_one(
-                doc! { "job_id": job_id },
-                doc! { "$set": { "status": "paused" } },
-                None,
-            )
-            .await
-            .map_err(|e| format!("Failed to update job: {}", e))?;
-
-        Ok(())
+        self.repository.pause_job(job_id).await
     }
 
     /// Resume a paused job
     pub async fn resume_job(&self, job_id: &str) -> Result<(), String> {
-        let job = self
-            .get_job(job_id)
-            .await
-            .map_err(|e| format!("Failed to fetch job: {}", e))?
-            .ok_or_else(|| format!("Job {} not found", job_id))?;
-
-        if job.status != JobStatus::Paused {
-            return Err("Job is not paused".to_string());
-        }
-
-        self.collection
-            .update_one(
-                doc! { "job_id": job_id },
-                doc! { "$set": { "status": "running" } },
-                None,
-            )
-            .await
-            .map_err(|e| format!("Failed to update job: {}", e))?;
-
-        Ok(())
+        self.repository.resume_job(job_id).await
     }
 
     /// List jobs with optional status filter
     pub async fn list_jobs(
         &self,
         status_filter: Option<JobStatus>,
-    ) -> Result<Vec<AgentJob>, mongodb::error::Error> {
-        let filter = if let Some(status) = status_filter {
-            doc! { "status": status.to_string() }
-        } else {
-            doc! {}
-        };
-
-        let mut cursor = self.collection.find(filter, None).await?;
-        let mut jobs = Vec::new();
-
-        while cursor.advance().await? {
-            jobs.push(cursor.deserialize_current()?);
-        }
-
-        Ok(jobs)
+    ) -> Result<Vec<AgentJob>, String> {
+        self.repository.list_jobs(status_filter).await
     }
 
     /// Delete a job
     pub async fn delete_job(&self, job_id: &str) -> Result<(), String> {
-        let result = self
-            .collection
-            .delete_one(doc! { "job_id": job_id }, None)
-            .await
-            .map_err(|e| format!("Failed to delete job: {}", e))?;
-
-        if result.deleted_count == 0 {
-            return Err(format!("Job {} not found", job_id));
-        }
-
-        Ok(())
+        self.repository.delete_job(job_id).await
     }
 
     /// Start background worker to process pending jobs
     /// This should be called once at application startup
     pub async fn start_worker(&self) -> Result<(), String> {
-        let collection = self.collection.clone();
-        let worker_collection = collection.clone();
+        let repository = self.repository.clone();
 
         let worker_handle = tokio::spawn(async move {
             loop {
                 // Poll for pending jobs every 5 seconds
                 // TODO: Implement actual job processing logic
-                if let Ok(Some(_job)) = worker_collection
-                    .find_one(doc! { "status": "running" }, None)
-                    .await
-                {
-                    // Process job here
+                if let Ok(jobs) = repository.list_jobs(Some(JobStatus::Running)).await {
+                    // Process jobs here
+                    let _ = jobs;
                 }
 
                 tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
@@ -402,6 +202,15 @@ impl AgentOrchestrator {
         let mut handle = self.worker_handle.write().await;
         *handle = Some(worker_handle);
 
+        Ok(())
+    }
+
+    /// Stop the background worker
+    pub async fn stop_worker(&self) -> Result<(), String> {
+        let mut handle = self.worker_handle.write().await;
+        if let Some(join_handle) = handle.take() {
+            join_handle.abort();
+        }
         Ok(())
     }
 
@@ -425,11 +234,10 @@ impl AgentOrchestrator {
 
 //     #[tokio::test]
 //     async fn test_agent_job_workflow() {
-//         // TODO: Setup MongoDB test instance
-//         // let client = Client::with_uri_str("mongodb://localhost:27017").await.unwrap();
-//         // let db = client.database("test_db");
-//         // let orchestrator = AgentOrchestrator::new(db).await.unwrap();
-//         
+//         // TODO: Setup repository and orchestrator
+//         // let repository = Arc::new(MongoAgentJobRepository::new(&db));
+//         // let orchestrator = AgentOrchestrator::new(repository);
+//
 //         // Create a job with steps
 //         // let steps = vec![
 //         //     JobStep::new("fetch_data")
@@ -440,17 +248,17 @@ impl AgentOrchestrator {
 //         //     JobStep::new("store_result")
 //         //         .with_description("Store result in database"),
 //         // ];
-//         
+//
 //         // let job_id = orchestrator.create_job(steps).await.unwrap();
-//         
+//
 //         // Start job
 //         // let _ = orchestrator.start_job(&job_id).await;
-//         
+//
 //         // Complete steps
 //         // let _ = orchestrator.complete_step(&job_id, Some(serde_json::json!({"data": "example"}))).await;
 //         // let _ = orchestrator.complete_step(&job_id, Some(serde_json::json!({"valid": true}))).await;
 //         // let _ = orchestrator.complete_step(&job_id, Some(serde_json::json!({"stored": true}))).await;
-//         
+//
 //         // Verify completion
 //         // let status = orchestrator.get_job_status(&job_id).await.unwrap();
 //         // assert_eq!(status, Some(JobStatus::Completed));

@@ -6,8 +6,9 @@ use crate::{
     db::Database,
     errors::AppResult,
     repositories::{
-        summary_document_respository, MongoQuizRepository, MongoSummaryDocumentRepository,
-        MongoUserRepository, SummaryDocumentRepository, UserRepository,
+        summary_document_respository, MongoAgentJobRepository, MongoQuizRepository,
+        MongoSummaryDocumentRepository, MongoUserRepository, SummaryDocumentRepository,
+        UserRepository,
     },
     services::{agent_orchestrator_service::AgentOrchestrator, model_service::ModelService, quiz_service::QuizService, user_service::UserService},
 };
@@ -42,7 +43,9 @@ impl AppState {
             config.jwt_expiration_hours,
         ));
 
-        let agent_orchestrator = Arc::new(AgentOrchestrator::new(db).await?);
+        let agent_job_repository = Arc::new(MongoAgentJobRepository::new(&db));
+        agent_job_repository.ensure_indexes().await?;
+        let agent_orchestrator = Arc::new(AgentOrchestrator::new(agent_job_repository));
 
         Ok(Self {
             user_service,
