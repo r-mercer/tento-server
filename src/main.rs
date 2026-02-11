@@ -35,35 +35,7 @@ async fn graphql_handler(
     schema.execute(request).await.into()
 }
 
-async fn graphql_playground() -> actix_web::Result<actix_web::HttpResponse> {
-    Ok(actix_web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(
-            r#"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>GraphQL Playground</title>
-                <link rel="stylesheet" href="https://unpkg.com/graphql-playground-react/build/static/css/index.css" />
-                <script src="https://unpkg.com/graphql-playground-react/build/static/js/middleware.js"></script>
-            </head>
-            <body>
-                <div id="root"></div>
-                <script>
-                    window.addEventListener('load', function (event) {
-                        GraphQLPlayground.init(document.getElementById('root'), {
-                            endpoint: '/graphql',
-                            settings: {
-                                'request.credentials': 'same-origin'
-                            }
-                        })
-                    })
-                </script>
-            </body>
-            </html>
-            "#,
-        ))
-}
+
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -91,17 +63,9 @@ async fn main() -> std::io::Result<()> {
     let port = config.web_server_port;
 
     log::info!("Starting server at http://{}:{}", host, port);
-    #[cfg(debug_assertions)]
-    log::info!(
-        "GraphQL Playground available at http://{}:{}/playground",
-        host,
-        port
-    );
-    #[cfg(not(debug_assertions))]
-    log::info!("GraphQL Playground disabled in release mode");
 
     HttpServer::new(move || {
-        let mut app = App::new()
+        App::new()
             .app_data(web::Data::new(app_state.clone()))
             .app_data(web::Data::new(schema.clone()))
             .app_data(web::Data::from(jwt_service.clone()))
@@ -123,15 +87,7 @@ async fn main() -> std::io::Result<()> {
             // Public routes
             .service(handlers::health_check)
             .service(handlers::auth_github_callback)
-            .service(handlers::refresh_token);
-
-        // Conditionally add playground in debug mode only
-        #[cfg(debug_assertions)]
-        {
-            app = app.route("/playground", web::get().to(graphql_playground));
-        }
-
-        app
+            .service(handlers::refresh_token)
             // Protected routes
             .service(
                 web::scope("")
