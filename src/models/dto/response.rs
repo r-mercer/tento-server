@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::models::domain::quiz_attempt::{QuizAttempt, QuizAttemptQuestion};
+use crate::models::domain::quiz_attempt::QuizAttempt;
 use crate::models::domain::quiz_question::QuizQuestionType;
 use crate::models::domain::{quiz::QuizStatus, Quiz, QuizQuestion, User};
 
@@ -115,7 +115,12 @@ pub struct PaginatedResponse<T: async_graphql::OutputType> {
     pub pagination: PaginationMetadata,
 }
 
-pub type PaginatedResponseUserDto = PaginatedResponse<UserDto>;
+#[derive(Debug, Serialize, SimpleObject)]
+#[graphql(name = "PaginatedUserResponse")]
+pub struct PaginatedResponseUserDto {
+    pub data: Vec<UserDto>,
+    pub pagination: PaginationMetadata,
+}
 
 // ============================================================================
 // Quiz DTOs for Answer Visibility Control
@@ -248,7 +253,12 @@ pub struct QuizAttemptReview {
     pub question_results: Vec<QuestionAttemptDetail>,
 }
 
-pub type PaginatedResponseQuizAttempt = PaginatedResponse<QuizAttemptResponse>;
+#[derive(Debug, Serialize, SimpleObject)]
+#[graphql(name = "PaginatedQuizAttemptResponse")]
+pub struct PaginatedResponseQuizAttempt {
+    pub data: Vec<QuizAttemptResponse>,
+    pub pagination: PaginationMetadata,
+}
 
 #[cfg(test)]
 mod tests {

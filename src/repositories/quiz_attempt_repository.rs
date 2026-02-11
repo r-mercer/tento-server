@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use futures::TryStreamExt;
 use mongodb::{bson::doc, options::IndexOptions, Collection, IndexModel};
 use uuid::Uuid;
 
@@ -160,8 +161,8 @@ impl QuizAttemptRepository for MongoQuizAttemptRepository {
         let attempts = self
             .collection
             .find(filter)
-            .skip(Some(offset as u64))
-            .limit(Some(limit))
+            .skip(offset as u64)
+            .limit(limit)
             .sort(doc! { "submitted_at": -1 })
             .await?
             .try_collect()

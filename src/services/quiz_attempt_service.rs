@@ -2,7 +2,7 @@ use crate::errors::{AppError, AppResult};
 use crate::models::domain::quiz_attempt::{QuizAttempt, QuizAttemptQuestion};
 use crate::models::domain::quiz_question::QuizQuestionType;
 use crate::models::domain::{Quiz, QuizQuestion};
-use crate::models::dto::request::{QuestionAnswerInput, SubmitQuizAttemptInput};
+use crate::models::dto::request::QuestionAnswerInput;
 use chrono::Utc;
 use uuid::Uuid;
 

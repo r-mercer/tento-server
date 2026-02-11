@@ -14,7 +14,7 @@ use crate::{
     constants::{prompts::QUIZ_GENERATOR_PROMPT, WEBSITE_SUMMARISER_PROMPT},
     errors::{AppError, AppResult},
     models::domain::{
-        summary_document::{self, SummaryDocument},
+        summary_document::SummaryDocument,
         Quiz,
     },
 };

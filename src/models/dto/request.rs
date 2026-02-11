@@ -1,6 +1,5 @@
 use async_graphql::InputObject;
 use serde::Deserialize;
-use uuid::Uuid;
 use validator::Validate;
 
 // static USERNAME_REGEX: Lazy<regex::Regex> = Lazy::new(|| {

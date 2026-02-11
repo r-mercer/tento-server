@@ -43,7 +43,7 @@ impl MongoAgentJobRepository {
             .build();
 
         self.collection
-            .create_index(job_id_index, None)
+            .create_index(job_id_index)
             .await
             .map_err(|e| format!("Failed to create job_id index: {}", e))?;
 
@@ -52,7 +52,7 @@ impl MongoAgentJobRepository {
             .build();
 
         self.collection
-            .create_index(status_index, None)
+            .create_index(status_index)
             .await
             .map_err(|e| format!("Failed to create status index: {}", e))?;
 
@@ -68,7 +68,7 @@ impl AgentJobRepository for MongoAgentJobRepository {
         let job_id = job.job_id.clone();
 
         self.collection
-            .insert_one(&job, None)
+            .insert_one(&job)
             .await
             .map_err(|e| format!("Failed to create job: {}", e))?;
 
@@ -77,7 +77,7 @@ impl AgentJobRepository for MongoAgentJobRepository {
 
     async fn get_job(&self, job_id: &str) -> Result<Option<AgentJob>, String> {
         self.collection
-            .find_one(doc! { "job_id": job_id }, None)
+            .find_one(doc! { "job_id": job_id })
             .await
             .map_err(|e| format!("Failed to fetch job: {}", e))
     }
@@ -108,7 +108,6 @@ impl AgentJobRepository for MongoAgentJobRepository {
                         "started_at": started_at,
                     }
                 },
-                None,
             )
             .await
             .map_err(|e| format!("Failed to update job: {}", e))?;
@@ -168,7 +167,7 @@ impl AgentJobRepository for MongoAgentJobRepository {
         };
 
         self.collection
-            .update_one(doc! { "job_id": job_id }, update_doc, None)
+            .update_one(doc! { "job_id": job_id }, update_doc)
             .await
             .map_err(|e| format!("Failed to update job: {}", e))?;
 
@@ -197,7 +196,6 @@ impl AgentJobRepository for MongoAgentJobRepository {
                         "completed_at": completed_at,
                     }
                 },
-                None,
             )
             .await
             .map_err(|e| format!("Failed to update job: {}", e))?;
@@ -219,7 +217,6 @@ impl AgentJobRepository for MongoAgentJobRepository {
             .update_one(
                 doc! { "job_id": job_id },
                 doc! { "$set": { "status": "paused" } },
-                None,
             )
             .await
             .map_err(|e| format!("Failed to update job: {}", e))?;
@@ -241,7 +238,6 @@ impl AgentJobRepository for MongoAgentJobRepository {
             .update_one(
                 doc! { "job_id": job_id },
                 doc! { "$set": { "status": "running" } },
-                None,
             )
             .await
             .map_err(|e| format!("Failed to update job: {}", e))?;
@@ -261,7 +257,7 @@ impl AgentJobRepository for MongoAgentJobRepository {
 
         let mut cursor = self
             .collection
-            .find(filter, None)
+            .find(filter)
             .await
             .map_err(|e| format!("Failed to list jobs: {}", e))?;
 
@@ -285,7 +281,7 @@ impl AgentJobRepository for MongoAgentJobRepository {
     async fn delete_job(&self, job_id: &str) -> Result<(), String> {
         let result = self
             .collection
-            .delete_one(doc! { "job_id": job_id }, None)
+            .delete_one(doc! { "job_id": job_id })
             .await
             .map_err(|e| format!("Failed to delete job: {}", e))?;
 
