@@ -7,9 +7,11 @@ use async_openai::{
     Client,
 };
 use secrecy::ExposeSecret;
+use serde_json::{json, Value};
 
 use crate::{
     config::Config,
+    constants::WEBSITE_SUMMARISER_PROMPT,
     errors::{AppError, AppResult},
 };
 
@@ -24,6 +26,7 @@ impl ModelService {
             .with_api_base(&config.openai_base_url);
 
         let client = Client::with_config(openai_config);
+        // let summariser_client = Client::with_config(openai_config);
 
         Self { client }
     }
@@ -54,6 +57,33 @@ impl ModelService {
             .ok_or_else(|| AppError::InternalError("No response from LLM".to_string()))?;
 
         Ok(content)
+    }
+
+    pub async fn website_summariser(&self) -> AppResult<String> {
+        let summ_client = Client::new();
+        let url_string = "";
+        let response: Value = summ_client
+            .chat()
+            .create_byot(json!({
+                "messages": [
+                    {
+                        "role": "website_content_summariser",
+                        "content": WEBSITE_SUMMARISER_PROMPT
+                    },
+                    {
+                        "role": "content_url",
+                        "content": url_string
+                    }
+                ],
+                "model": "liquid/lfm2-1.2b",
+                "store": false
+            }))
+            .await?;
+
+        // if let Some(content) = response.output_text().to_string() {
+        // Ok(response.output_text())
+        println!("response: {}", response);
+        Ok(response.to_string())
     }
 }
 

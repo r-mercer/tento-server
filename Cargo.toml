@@ -8,7 +8,7 @@ actix-web = "4.12.1"
 actix-web-httpauth = "0.8"
 async-graphql = { version = "7.0", features = ["chrono", "uuid"] }
 async-graphql-actix-web = "7.0"
-async-openai = { version = "0.32.4", features = ["chat-completion"] }
+async-openai = { version = "0.32.4", features = ["chat-completion", "byot"] }
 async-trait = "0.1"
 bson = "3.1.0"
 chrono = { version = "0.4", features = ["serde"] }
