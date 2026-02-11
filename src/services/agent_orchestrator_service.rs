@@ -205,16 +205,6 @@ impl AgentOrchestrator {
         Ok(())
     }
 
-    /// Stop the background worker
-    pub async fn stop_worker(&self) -> Result<(), String> {
-        let mut handle = self.worker_handle.write().await;
-        if let Some(join_handle) = handle.take() {
-            join_handle.abort();
-        }
-        Ok(())
-    }
-
-    /// Stop the background worker
     pub async fn stop_worker(&self) -> Result<(), String> {
         let mut handle = self.worker_handle.write().await;
         if let Some(join_handle) = handle.take() {
@@ -224,43 +214,4 @@ impl AgentOrchestrator {
     }
 }
 
-// ============================================================================
-// MOCK/EXAMPLE USAGE (uncomment and modify as needed)
-// ============================================================================
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[tokio::test]
-//     async fn test_agent_job_workflow() {
-//         // TODO: Setup repository and orchestrator
-//         // let repository = Arc::new(MongoAgentJobRepository::new(&db));
-//         // let orchestrator = AgentOrchestrator::new(repository);
-//
-//         // Create a job with steps
-//         // let steps = vec![
-//         //     JobStep::new("fetch_data")
-//         //         .with_description("Fetch data from external API")
-//         //         .with_timeout(30),
-//         //     JobStep::new("validate_data")
-//         //         .with_description("Validate fetched data"),
-//         //     JobStep::new("store_result")
-//         //         .with_description("Store result in database"),
-//         // ];
-//
-//         // let job_id = orchestrator.create_job(steps).await.unwrap();
-//
-//         // Start job
-//         // let _ = orchestrator.start_job(&job_id).await;
-//
-//         // Complete steps
-//         // let _ = orchestrator.complete_step(&job_id, Some(serde_json::json!({"data": "example"}))).await;
-//         // let _ = orchestrator.complete_step(&job_id, Some(serde_json::json!({"valid": true}))).await;
-//         // let _ = orchestrator.complete_step(&job_id, Some(serde_json::json!({"stored": true}))).await;
-//
-//         // Verify completion
-//         // let status = orchestrator.get_job_status(&job_id).await.unwrap();
-//         // assert_eq!(status, Some(JobStatus::Completed));
-//     }
-// }

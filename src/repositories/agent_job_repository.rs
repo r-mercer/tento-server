@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use mongodb::{bson::doc, options::IndexOptions, Collection, IndexModel};
-use std::collections::HashMap;
 
 use crate::db::Database;
 use crate::services::agent_orchestrator_service::{AgentJob, JobStatus, JobStep};
@@ -133,15 +132,12 @@ impl AgentJobRepository for MongoAgentJobRepository {
 
         let mut updated_job = job.clone();
 
-        // Store result if provided
         if let (Some(step), Some(result_value)) = (updated_job.get_current_step(), result) {
             updated_job.results.insert(step.id.clone(), result_value);
         }
 
-        // Move to next step
         updated_job.current_step_index += 1;
 
-        // Check if completed
         let new_status = if updated_job.is_complete() {
             "completed"
         } else {

@@ -8,19 +8,24 @@ use crate::{
         domain::Quiz,
         dto::{
             request::CreateQuizDraftRequest,
-            response::{CreateQuizDraftResponse, QuizDto},
+            response::{CreateQuizDraftResponse, CreateQuizDraftResponseData, QuizDto},
         },
     },
     repositories::QuizRepository,
+    services::{agent_orchestrator_service::AgentOrchestrator, orchestrator_steps::create_quiz_generation_steps},
 };
 
 pub struct QuizService {
     repository: Arc<dyn QuizRepository>,
+    orchestrator: Arc<AgentOrchestrator>,
 }
 
 impl QuizService {
-    pub fn new(repository: Arc<dyn QuizRepository>) -> Self {
-        Self { repository }
+    pub fn new(repository: Arc<dyn QuizRepository>, orchestrator: Arc<AgentOrchestrator>) -> Self {
+        Self {
+            repository,
+            orchestrator,
+        }
     }
 
     pub async fn get_quiz(&self, id: &Uuid) -> AppResult<Quiz> {
@@ -33,20 +38,11 @@ impl QuizService {
         Ok(quiz)
     }
 
-    // let user = User::from_request(request);
-    // let created_user = self.repository.create(user).await?;
-    //
-    // Ok(CreateUserResponse {
-    //     data: UserDto::from(created_user),
-    //     message: "User created successfully".to_string(),
-    // })
     pub async fn create_quiz_draft(
         &self,
         request: CreateQuizDraftRequest,
     ) -> AppResult<CreateQuizDraftResponse> {
         request.validate()?;
-
-        // possibly include if URL has summary or similar if we get there
 
         let quiz = Quiz::new_draft(
             &request.name,
@@ -58,9 +54,24 @@ impl QuizService {
 
         let created_quiz = self.repository.create_quiz_draft(quiz).await?;
 
+        let steps = create_quiz_generation_steps();
+        let job_id = self
+            .orchestrator
+            .create_job(steps)
+            .await
+            .map_err(|e| AppError::InternalServerError(format!("Job creation failed: {}", e)))?;
+
+        self.orchestrator
+            .start_job(&job_id)
+            .await
+            .map_err(|e| AppError::InternalServerError(format!("Job startup failed: {}", e)))?;
+
         Ok(CreateQuizDraftResponse {
-            data: QuizDto::from(created_quiz),
-            message: "Draft created successfully".to_string(),
+            data: CreateQuizDraftResponseData {
+                quiz: QuizDto::from(created_quiz),
+                job_id,
+            },
+            message: "Draft created successfully and processing started".to_string(),
         })
     }
 }

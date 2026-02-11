@@ -75,9 +75,15 @@ pub struct ApiResponse<T: async_graphql::OutputType> {
     pub message: String,
 }
 
+#[derive(Debug, Serialize, SimpleObject)]
+pub struct CreateQuizDraftResponseData {
+    pub quiz: QuizDto,
+    pub job_id: String,
+}
+
 pub type CreateUserResponse = ApiResponse<UserDto>;
 pub type UpdateUserResponse = ApiResponse<UserDto>;
-pub type CreateQuizDraftResponse = ApiResponse<QuizDto>;
+pub type CreateQuizDraftResponse = ApiResponse<CreateQuizDraftResponseData>;
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct ChatCompletionResponse {

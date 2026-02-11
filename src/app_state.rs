@@ -31,9 +31,14 @@ impl AppState {
         user_repository.ensure_indexes().await?;
         let user_service = Arc::new(UserService::new(user_repository));
 
+        // Initialize agent orchestrator first since quiz_service depends on it
+        let agent_job_repository = Arc::new(MongoAgentJobRepository::new(&db));
+        agent_job_repository.ensure_indexes().await?;
+        let agent_orchestrator = Arc::new(AgentOrchestrator::new(agent_job_repository));
+
         let quiz_repository = Arc::new(MongoQuizRepository::new(&db));
         quiz_repository.ensure_indexes().await?;
-        let quiz_service = Arc::new(QuizService::new(quiz_repository));
+        let quiz_service = Arc::new(QuizService::new(quiz_repository, agent_orchestrator.clone()));
 
         let model_service = Arc::new(ModelService::new(&config));
         let summary_document_respository = Arc::new(MongoSummaryDocumentRepository::new(&db));
@@ -42,10 +47,6 @@ impl AppState {
             &config.gh_client_secret,
             config.jwt_expiration_hours,
         ));
-
-        let agent_job_repository = Arc::new(MongoAgentJobRepository::new(&db));
-        agent_job_repository.ensure_indexes().await?;
-        let agent_orchestrator = Arc::new(AgentOrchestrator::new(agent_job_repository));
 
         Ok(Self {
             user_service,
