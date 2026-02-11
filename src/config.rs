@@ -12,6 +12,7 @@ pub struct Config {
     pub web_server_port: u16,
     pub jwt_secret: SecretString,
     pub jwt_expiration_hours: i64,
+    pub jwt_refresh_expiration_hours: i64,
     pub func_enums_embed_model: String,
     pub func_enums_max_response_tokens: u32,
     pub func_enums_max_request_tokens: u32,
@@ -45,7 +46,11 @@ impl Config {
             jwt_expiration_hours: env::var("JWT_EXPIRATION_HOURS")
                 .ok()
                 .and_then(|h| h.parse().ok())
-                .unwrap_or(24),
+                .unwrap_or(1),
+            jwt_refresh_expiration_hours: env::var("JWT_REFRESH_EXPIRATION_HOURS")
+                .ok()
+                .and_then(|h| h.parse().ok())
+                .unwrap_or(168),
             func_enums_embed_model: env::var("FUNC_ENUMS_EMBED_MODEL")
                 .unwrap_or_else(|_| "text-embedding-embeddinggemma-300m".to_string()),
             func_enums_max_response_tokens: env::var("FUNC_ENUMS_MAX_RESPONSE_TOKENS")
@@ -150,6 +155,7 @@ impl Config {
             web_server_port: 8080,
             jwt_secret: SecretString::from("test_jwt_secret_key".to_string()),
             jwt_expiration_hours: 1,
+            jwt_refresh_expiration_hours: 168,
             func_enums_embed_model: "test-embed-model".to_string(),
             func_enums_max_response_tokens: 1000,
             func_enums_max_request_tokens: 4191,
