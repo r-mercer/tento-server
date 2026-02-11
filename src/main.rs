@@ -1,4 +1,6 @@
 use actix_web::{middleware::Logger, web, App, HttpMessage, HttpServer};
+use actix_cors::Cors;
+use actix_web::http;
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use std::env;
 
@@ -104,6 +106,20 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(schema.clone()))
             .app_data(web::Data::from(jwt_service.clone()))
             .wrap(Logger::default())
+            .wrap(
+                Cors::default()
+                    .allowed_origin("http://localhost:5173")
+                    .allowed_origin("http://localhost:3000")
+                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+                    .allowed_headers(vec![
+                        http::header::AUTHORIZATION,
+                        http::header::ACCEPT,
+                        http::header::CONTENT_TYPE,
+                    ])
+                    .expose_headers(vec![http::header::AUTHORIZATION])
+                    .max_age(3600)
+                    .supports_credentials()
+            )
             // Public routes
             .service(handlers::health_check)
             .service(handlers::auth_github_callback);
