@@ -9,7 +9,7 @@ use crate::{
         summary_document_respository, MongoQuizRepository, MongoSummaryDocumentRepository,
         MongoUserRepository, SummaryDocumentRepository, UserRepository,
     },
-    services::{model_service::ModelService, quiz_service::QuizService, user_service::UserService},
+    services::{agent_orchestrator_service::AgentOrchestrator, model_service::ModelService, quiz_service::QuizService, user_service::UserService},
 };
 
 #[derive(Clone)]
@@ -19,6 +19,7 @@ pub struct AppState {
     pub model_service: Arc<ModelService>,
     pub jwt_service: Arc<JwtService>,
     pub config: Arc<Config>,
+    pub agent_orchestrator: Arc<AgentOrchestrator>,
 }
 
 impl AppState {
@@ -41,12 +42,15 @@ impl AppState {
             config.jwt_expiration_hours,
         ));
 
+        let agent_orchestrator = Arc::new(AgentOrchestrator::new(db).await?);
+
         Ok(Self {
             user_service,
             quiz_service,
             model_service,
             jwt_service,
             config: Arc::new(config),
+            agent_orchestrator,
         })
     }
 }

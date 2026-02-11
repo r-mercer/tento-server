@@ -10,7 +10,7 @@ pub struct QuizQuestion {
     pub description: String,
     pub question_type: QuizQuestionType,
     pub options: Vec<QuizQuestionOption>,
-    pub correct_question_option: String,
+    pub option_count: i16, // default of four
     pub order: i16,
     pub attempt_limit: i16,
     pub topic: String,
@@ -24,11 +24,13 @@ pub struct QuizQuestion {
 pub struct QuizQuestionOption {
     pub id: Uuid,
     pub text: String,
+    pub correct: bool,
+    pub explanation: String, // explanation for why this option is correct or incorrect
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Enum, Copy)]
 pub enum QuizQuestionType {
-    Single,
-    Multi,
-    Bool,
+    Single, // Only one correct option
+    Multi,  // Multiple correct options
+    Bool,   // True/False question
 }
