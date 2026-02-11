@@ -7,8 +7,8 @@ use crate::{
     errors::AppResult,
     repositories::{
         summary_document_respository, MongoAgentJobRepository, MongoQuizRepository,
-        MongoSummaryDocumentRepository, MongoUserRepository, SummaryDocumentRepository,
-        UserRepository,
+        MongoQuizAttemptRepository, MongoSummaryDocumentRepository, MongoUserRepository,
+        SummaryDocumentRepository, UserRepository, QuizAttemptRepository,
     },
     services::{agent_orchestrator_service::AgentOrchestrator, model_service::ModelService, quiz_service::QuizService, user_service::UserService},
 };
@@ -17,6 +17,7 @@ use crate::{
 pub struct AppState {
     pub user_service: Arc<UserService>,
     pub quiz_service: Arc<QuizService>,
+    pub quiz_attempt_repository: Arc<dyn QuizAttemptRepository>,
     pub model_service: Arc<ModelService>,
     pub jwt_service: Arc<JwtService>,
     pub config: Arc<Config>,
@@ -40,6 +41,10 @@ impl AppState {
         quiz_repository.ensure_indexes().await?;
         let quiz_service = Arc::new(QuizService::new(quiz_repository, agent_orchestrator.clone()));
 
+        let quiz_attempt_repository_mongo = Arc::new(MongoQuizAttemptRepository::new(&db));
+        quiz_attempt_repository_mongo.ensure_indexes().await?;
+        let quiz_attempt_repository: Arc<dyn QuizAttemptRepository> = quiz_attempt_repository_mongo;
+
         let model_service = Arc::new(ModelService::new(&config));
         let summary_document_respository = Arc::new(MongoSummaryDocumentRepository::new(&db));
 
@@ -51,6 +56,7 @@ impl AppState {
         Ok(Self {
             user_service,
             quiz_service,
+            quiz_attempt_repository,
             model_service,
             jwt_service,
             config: Arc::new(config),

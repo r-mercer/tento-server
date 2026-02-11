@@ -1,5 +1,6 @@
 use async_graphql::InputObject;
 use serde::Deserialize;
+use uuid::Uuid;
 use validator::Validate;
 
 // static USERNAME_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
@@ -91,6 +92,22 @@ impl PaginationParams {
     pub fn limit(&self) -> i64 {
         self.limit.unwrap_or(20).min(100)
     }
+}
+
+// ============================================================================
+// Quiz Attempt Input DTOs
+// ============================================================================
+
+#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+pub struct QuestionAnswerInput {
+    pub question_id: String,              // UUID as string
+    pub selected_option_ids: Vec<String>, // UUID strings
+}
+
+#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+pub struct SubmitQuizAttemptInput {
+    pub quiz_id: String,
+    pub answers: Vec<QuestionAnswerInput>,
 }
 
 #[cfg(test)]

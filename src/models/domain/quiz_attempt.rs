@@ -7,11 +7,12 @@ pub struct QuizAttempt {
     pub id: Uuid,
     pub user_id: Uuid,
     pub quiz_id: Uuid,
-    pub explanation: String,
-    pub question_attempts: Vec<QuizAttemptQuestions>,
-    pub total_score: i16,
+    pub points_earned: i16,
+    pub total_possible: i16,
+    pub passed: bool,
     pub attempt_number: i16,
-    pub topic: String,
+    pub question_answers: Vec<QuizAttemptQuestion>,
+    pub submitted_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -19,9 +20,10 @@ pub struct QuizAttempt {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub struct QuizAttemptQuestions {
+pub struct QuizAttemptQuestion {
     pub id: Uuid,
-    pub quiz_id: Uuid,
     pub quiz_question_id: Uuid,
-    pub correct: bool,
+    pub selected_option_ids: Vec<Uuid>,
+    pub is_correct: bool,
+    pub points_earned: i16,
 }

@@ -20,6 +20,12 @@ pub enum AppError {
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
 
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+
     #[error("Internal server error: {0}")]
     InternalError(String),
 
@@ -35,6 +41,8 @@ impl AppError {
             AppError::ValidationError(_) => "VALIDATION_ERROR",
             AppError::DatabaseError(_) => "DATABASE_ERROR",
             AppError::Unauthorized(_) => "UNAUTHORIZED",
+            AppError::Forbidden(_) => "FORBIDDEN",
+            AppError::BadRequest(_) => "BAD_REQUEST",
             AppError::InternalError(_) => "INTERNAL_ERROR",
             AppError::LlmError(_) => "LLM_ERROR",
         }
@@ -55,6 +63,8 @@ impl ResponseError for AppError {
             AppError::ValidationError(_) => StatusCode::BAD_REQUEST,
             AppError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            AppError::Forbidden(_) => StatusCode::FORBIDDEN,
+            AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
             AppError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::LlmError(_) => StatusCode::BAD_GATEWAY,
         }

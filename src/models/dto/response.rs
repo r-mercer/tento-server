@@ -3,6 +3,8 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::models::domain::quiz_attempt::{QuizAttempt, QuizAttemptQuestion};
+use crate::models::domain::quiz_question::QuizQuestionType;
 use crate::models::domain::{quiz::QuizStatus, Quiz, QuizQuestion, User};
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
@@ -30,6 +32,7 @@ impl From<User> for UserDto {
 pub struct QuizDto {
     pub id: Uuid,
     pub name: String,
+    pub created_by_user_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -54,6 +57,7 @@ impl From<Quiz> for QuizDto {
         QuizDto {
             id: quiz.id,
             name: quiz.name,
+            created_by_user_id: quiz.created_by_user_id,
             title: quiz.title,
             description: quiz.description,
             question_count: quiz.question_count,
@@ -112,6 +116,139 @@ pub struct PaginatedResponse<T: async_graphql::OutputType> {
 }
 
 pub type PaginatedResponseUserDto = PaginatedResponse<UserDto>;
+
+// ============================================================================
+// Quiz DTOs for Answer Visibility Control
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, SimpleObject)]
+pub struct QuizQuestionOptionForTaking {
+    pub id: Uuid,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, SimpleObject)]
+pub struct QuizQuestionForTaking {
+    pub id: Uuid,
+    pub title: String,
+    pub description: String,
+    pub question_type: QuizQuestionType,
+    pub options: Vec<QuizQuestionOptionForTaking>,
+    pub option_count: i16,
+    pub order: i16,
+    pub topic: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, SimpleObject)]
+pub struct QuizForTaking {
+    pub id: Uuid,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub question_count: i16,
+    pub required_score: i16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub topic: Option<String>,
+    pub status: QuizStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub questions: Option<Vec<QuizQuestionForTaking>>,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<DateTime<Utc>>,
+}
+
+impl QuizForTaking {
+    pub fn from_quiz(quiz: Quiz) -> Self {
+        let questions = quiz.questions.map(|qs| {
+            qs.into_iter()
+                .map(|q| QuizQuestionForTaking {
+                    id: q.id,
+                    title: q.title,
+                    description: q.description,
+                    question_type: q.question_type,
+                    options: q
+                        .options
+                        .into_iter()
+                        .map(|opt| QuizQuestionOptionForTaking {
+                            id: opt.id,
+                            text: opt.text,
+                        })
+                        .collect(),
+                    option_count: q.option_count,
+                    order: q.order,
+                    topic: q.topic,
+                    created_at: q.created_at,
+                })
+                .collect()
+        });
+
+        QuizForTaking {
+            id: quiz.id,
+            name: quiz.name,
+            title: quiz.title,
+            description: quiz.description,
+            question_count: quiz.question_count,
+            required_score: quiz.required_score,
+            topic: quiz.topic,
+            status: quiz.status,
+            questions,
+            url: quiz.url,
+            created_at: quiz.created_at,
+        }
+    }
+}
+
+// ============================================================================
+// Quiz Attempt DTOs
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, SimpleObject)]
+pub struct QuizAttemptResponse {
+    pub id: Uuid,
+    pub quiz_id: Uuid,
+    pub points_earned: i16,
+    pub total_possible: i16,
+    pub passed: bool,
+    pub attempt_number: i16,
+    pub submitted_at: DateTime<Utc>,
+}
+
+impl From<QuizAttempt> for QuizAttemptResponse {
+    fn from(attempt: QuizAttempt) -> Self {
+        QuizAttemptResponse {
+            id: attempt.id,
+            quiz_id: attempt.quiz_id,
+            points_earned: attempt.points_earned,
+            total_possible: attempt.total_possible,
+            passed: attempt.passed,
+            attempt_number: attempt.attempt_number,
+            submitted_at: attempt.submitted_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, SimpleObject)]
+pub struct QuestionAttemptDetail {
+    pub question_id: Uuid,
+    pub user_selected_option_ids: Vec<Uuid>,
+    pub correct_option_ids: Vec<Uuid>,
+    pub is_correct: bool,
+    pub points_earned: i16,
+    pub explanation: String,
+}
+
+#[derive(Debug, Clone, Serialize, SimpleObject)]
+pub struct QuizAttemptReview {
+    pub attempt: QuizAttemptResponse,
+    pub quiz: QuizDto,
+    pub question_results: Vec<QuestionAttemptDetail>,
+}
+
+pub type PaginatedResponseQuizAttempt = PaginatedResponse<QuizAttemptResponse>;
 
 #[cfg(test)]
 mod tests {
