@@ -57,6 +57,7 @@ impl QuizService {
         );
 
         let created_quiz = self.repository.create_quiz_draft(quiz).await?;
+
         Ok(CreateQuizDraftResponse {
             data: QuizDto::from(created_quiz),
             message: "Draft created successfully".to_string(),

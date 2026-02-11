@@ -11,8 +11,12 @@ use serde_json::{json, Value};
 
 use crate::{
     config::Config,
-    constants::WEBSITE_SUMMARISER_PROMPT,
+    constants::{prompts::QUIZ_GENERATOR_PROMPT, WEBSITE_SUMMARISER_PROMPT},
     errors::{AppError, AppResult},
+    models::domain::{
+        summary_document::{self, SummaryDocument},
+        Quiz,
+    },
 };
 
 pub struct ModelService {
@@ -73,6 +77,40 @@ impl ModelService {
                     {
                         "role": "content_url",
                         "content": url_string
+                    }
+                ],
+                "model": "liquid/lfm2-1.2b",
+                "store": false
+            }))
+            .await?;
+
+        // if let Some(content) = response.output_text().to_string() {
+        // Ok(response.output_text())
+        println!("response: {}", response);
+        Ok(response.to_string())
+    }
+
+    pub async fn quiz_generator(
+        &self,
+        quiz: Quiz,
+        summary_document: SummaryDocument,
+    ) -> AppResult<String> {
+        let summ_client = Client::new();
+        let response: Value = summ_client
+            .chat()
+            .create_byot(json!({
+                "messages": [
+                    {
+                        "role": "quiz_generator",
+                        "content": QUIZ_GENERATOR_PROMPT
+                    },
+                    {
+                        "role": "quiz_draft",
+                        "content": quiz
+                    },
+                    {
+                        "role": "summary_document",
+                        "content": summary_document
                     }
                 ],
                 "model": "liquid/lfm2-1.2b",
