@@ -132,8 +132,19 @@ impl AgentJobRepository for MongoAgentJobRepository {
 
         let mut updated_job = job.clone();
 
-        if let (Some(step), Some(result_value)) = (updated_job.get_current_step(), result) {
-            updated_job.results.insert(step.id.clone(), result_value);
+        if let (Some(_step), Some(result_value)) = (updated_job.get_current_step(), result) {
+            // If result is a JSON object, merge its contents into results
+            // Otherwise, store it under the step ID
+            if let Some(obj) = result_value.as_object() {
+                for (key, value) in obj {
+                    updated_job.results.insert(key.clone(), value.clone());
+                }
+            } else {
+                // Fallback for non-object results
+                if let Some(step) = updated_job.get_current_step() {
+                    updated_job.results.insert(step.id.clone(), result_value);
+                }
+            }
         }
 
         updated_job.current_step_index += 1;
