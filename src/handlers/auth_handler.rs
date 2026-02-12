@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use actix_web::{get, post, web, HttpResponse};
 use octocrab::Octocrab;
 use secrecy::ExposeSecret as _;
@@ -22,11 +23,18 @@ pub struct AuthResponse {
 
 #[get("/auth/github/callback")]
 pub async fn auth_github_callback(
-    state: web::Data<AppState>,
+    state: web::Data<Arc<AppState>>,
     web::Query(params): web::Query<CallbackParams>,
 ) -> Result<HttpResponse, AppError> {
+    log::info!("=== GitHub OAuth Callback Started ===");
+    log::info!("Code: {}", params.code);
+    log::info!("Redirect URI: {:?}", params.redirect_uri);
+    
     let client_id = &state.config.gh_client_id;
     let client_secret = state.config.gh_client_secret.expose_secret();
+    
+    log::info!("Client ID: {}", client_id);
+    log::info!("Client Secret length: {}", client_secret.len());
 
     // Create a simple HTTP client for token exchange (Octocrab doesn't handle OAuth well)
     // We need to make a raw request to GitHub's OAuth endpoint
@@ -36,18 +44,32 @@ pub async fn auth_github_callback(
     // If not provided, use the default frontend redirect URI
     let redirect_uri = params.redirect_uri.as_deref().unwrap_or("http://localhost:5173/auth/callback");
     
+    log::info!("Using redirect_uri: {}", redirect_uri);
+    
+    let request_body = serde_json::json!({
+        "code": params.code,
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "redirect_uri": redirect_uri,
+    });
+    
+    log::info!("GitHub request body (JSON): {}", serde_json::to_string_pretty(&request_body).unwrap());
+    
     let token_response = client
         .post("https://github.com/login/oauth/access_token")
         .header("accept", "application/json")
-        .json(&serde_json::json!({
-            "code": params.code,
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "redirect_uri": redirect_uri,
-        }))
+        .form(&[
+            ("code", params.code.as_str()),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("redirect_uri", redirect_uri),
+        ])
         .send()
         .await
-        .map_err(|e| AppError::InternalError(format!("Failed to exchange OAuth code: {}", e)))?;
+        .map_err(|e| {
+            log::error!("Failed to send request to GitHub: {}", e);
+            AppError::InternalError(format!("Failed to exchange OAuth code: {}", e))
+        })?;
     
     let status = token_response.status();
     let response_text = token_response.text().await
@@ -57,29 +79,36 @@ pub async fn auth_github_callback(
     log::info!("GitHub token exchange response body: {}", response_text);
     
     let oauth = serde_json::from_str::<serde_json::Value>(&response_text)
-        .map_err(|e| AppError::InternalError(format!("Failed to parse token response: {} | Response: {}", e, response_text)))?;
+        .map_err(|e| {
+            log::error!("Failed to parse GitHub response: {}", e);
+            AppError::InternalError(format!("Failed to parse token response: {} | Response: {}", e, response_text))
+        })?;
 
     let oauth = oauth
         .as_object()
         .ok_or_else(|| AppError::InternalError("Invalid OAuth response format".to_string()))?;
     
-    let access_token = oauth
-        .get("access_token")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::InternalError(
-            "No access_token in GitHub response. Possible issues: invalid code, or GitHub credentials misconfigured".to_string()
-        ))?;
-    
-    // Check for OAuth errors from GitHub
+    // Check for OAuth errors from GitHub FIRST
     if let Some(error) = oauth.get("error").and_then(|v| v.as_str()) {
         let error_description = oauth
             .get("error_description")
             .and_then(|v| v.as_str())
             .unwrap_or("Unknown error");
+        log::error!("GitHub OAuth error: {} - {}", error, error_description);
         return Err(AppError::InternalError(
             format!("GitHub OAuth error: {} - {}", error, error_description)
         ));
     }
+    
+    let access_token = oauth
+        .get("access_token")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            log::error!("No access_token in GitHub response. Full response: {:?}", oauth);
+            AppError::InternalError(
+                "No access_token in GitHub response. Possible issues: invalid code, or GitHub credentials misconfigured".to_string()
+            )
+        })?;
 
     let gh_client = Octocrab::builder()
         .user_access_token(access_token.to_string())
@@ -135,7 +164,7 @@ pub struct RefreshTokenResponse {
 
 #[post("/auth/refresh")]
 pub async fn refresh_token(
-    state: web::Data<AppState>,
+    state: web::Data<Arc<AppState>>,
     request: web::Json<RefreshTokenRequest>,
 ) -> Result<HttpResponse, AppError> {
     // Validate refresh token with detailed error messages

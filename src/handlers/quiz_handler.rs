@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix_web::{get, post, web, HttpResponse};
 use uuid::Uuid;
 
@@ -10,7 +12,7 @@ use crate::{
 
 #[get("/api/quizzes/{id}")]
 async fn get_quiz(
-    state: web::Data<AppState>,
+    state: web::Data<Arc<AppState>>,
     id: web::Path<Uuid>,
     _auth: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
@@ -20,7 +22,7 @@ async fn get_quiz(
 
 #[post("/api/quizzes/drafts")]
 async fn create_quiz_draft(
-    state: web::Data<AppState>,
+    state: web::Data<Arc<AppState>>,
     request: web::Json<CreateQuizDraftRequest>,
     _auth: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {

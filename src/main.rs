@@ -2,6 +2,7 @@ use actix_cors::Cors;
 use actix_web::http;
 use actix_web::{middleware::Logger, web, App, HttpMessage, HttpServer};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
+use secrecy::ExposeSecret as _;
 use std::env;
 
 pub mod app_state;
@@ -48,6 +49,10 @@ async fn main() -> std::io::Result<()> {
         config.validate_for_production();
         log::info!("Configuration validated successfully");
     }
+    
+    // Log OAuth configuration (without exposing secrets)
+    log::info!("GitHub OAuth configured with Client ID: {}", config.gh_client_id);
+    log::info!("GitHub OAuth Client Secret is {} characters", config.gh_client_secret.expose_secret().len());
 
     let app_state = AppState::new(config.clone())
         .await

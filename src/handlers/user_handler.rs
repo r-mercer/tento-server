@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix_web::{get, post, web, HttpResponse};
 
 use crate::{
@@ -9,7 +11,7 @@ use crate::{
 
 #[post("/api/users")]
 async fn create_user(
-    state: web::Data<AppState>,
+    state: web::Data<Arc<AppState>>,
     request: web::Json<CreateUserRequest>,
     _auth: AuthenticatedUser, // Require authentication
 ) -> Result<HttpResponse, AppError> {
@@ -19,7 +21,7 @@ async fn create_user(
 
 #[get("/api/users/{username}")]
 async fn get_user(
-    state: web::Data<AppState>,
+    state: web::Data<Arc<AppState>>,
     username: web::Path<String>,
     auth: AuthenticatedUser, // Require authentication
 ) -> Result<HttpResponse, AppError> {
@@ -31,7 +33,7 @@ async fn get_user(
 
 #[get("/api/users")]
 async fn get_all_users(
-    state: web::Data<AppState>,
+    state: web::Data<Arc<AppState>>,
     query: web::Query<PaginationParams>,
     auth: AuthenticatedUser, // Require authentication
 ) -> Result<HttpResponse, AppError> {
@@ -47,7 +49,7 @@ async fn get_all_users(
 
 #[actix_web::put("/api/users/{username}")]
 async fn update_user(
-    state: web::Data<AppState>,
+    state: web::Data<Arc<AppState>>,
     username: web::Path<String>,
     request: web::Json<UpdateUserRequest>,
     auth: AuthenticatedUser, // Require authentication
@@ -63,7 +65,7 @@ async fn update_user(
 
 #[actix_web::delete("/api/users/{username}")]
 async fn delete_user(
-    state: web::Data<AppState>,
+    state: web::Data<Arc<AppState>>,
     username: web::Path<String>,
     auth: AuthenticatedUser, // Require authentication
 ) -> Result<HttpResponse, AppError> {
