@@ -8,6 +8,8 @@ use crate::{app_state::AppState, errors::AppError, models::domain::user::User};
 #[derive(Debug, Deserialize)]
 pub struct CallbackParams {
     code: String,
+    #[serde(default)]
+    redirect_uri: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -26,39 +28,65 @@ pub async fn auth_github_callback(
     let client_id = &state.config.gh_client_id;
     let client_secret = state.config.gh_client_secret.expose_secret();
 
-    let oauth_client = octocrab::Octocrab::builder()
-        .base_uri("https://github.com")
-        .map_err(|e| AppError::InternalError(format!("OAuth client error: {}", e)))?
-        .add_header(
-            "accept"
-                .parse()
-                .map_err(|e| AppError::InternalError(format!("Invalid header name: {}", e)))?,
-            "application/json".to_string(),
-        )
-        .build()
-        .map_err(|e| AppError::InternalError(format!("OAuth client build error: {}", e)))?;
-
-    let oauth = oauth_client
-        .post::<_, serde_json::Value>(
-            "/login/oauth/access_token",
-            Some(&serde_json::json!({
-                "code": params.code,
-                "client_id": client_id,
-                "client_secret": client_secret,
-            })),
-        )
+    // Create a simple HTTP client for token exchange (Octocrab doesn't handle OAuth well)
+    // We need to make a raw request to GitHub's OAuth endpoint
+    let client = reqwest::Client::new();
+    
+    // The redirect_uri MUST match what was used in the initial authorization request
+    // If not provided, use the default frontend redirect URI
+    let redirect_uri = params.redirect_uri.as_deref().unwrap_or("http://localhost:5173/auth/callback");
+    
+    let token_response = client
+        .post("https://github.com/login/oauth/access_token")
+        .header("accept", "application/json")
+        .json(&serde_json::json!({
+            "code": params.code,
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "redirect_uri": redirect_uri,
+        }))
+        .send()
         .await
-        .map_err(|e| AppError::InternalError(format!("OAuth token exchange failed: {}", e)))?;
+        .map_err(|e| AppError::InternalError(format!("Failed to exchange OAuth code: {}", e)))?;
+    
+    let status = token_response.status();
+    let response_text = token_response.text().await
+        .unwrap_or_else(|_| "Could not read response body".to_string());
+    
+    log::info!("GitHub token exchange response status: {}", status);
+    log::info!("GitHub token exchange response body: {}", response_text);
+    
+    let oauth = serde_json::from_str::<serde_json::Value>(&response_text)
+        .map_err(|e| AppError::InternalError(format!("Failed to parse token response: {} | Response: {}", e, response_text)))?;
 
-    let oauth_creds = serde_json::from_value::<octocrab::auth::OAuth>(oauth.clone())
-        .map_err(|e| AppError::InternalError(format!("Failed to parse OAuth response: {}", e)))?;
+    let oauth = oauth
+        .as_object()
+        .ok_or_else(|| AppError::InternalError("Invalid OAuth response format".to_string()))?;
+    
+    let access_token = oauth
+        .get("access_token")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::InternalError(
+            "No access_token in GitHub response. Possible issues: invalid code, or GitHub credentials misconfigured".to_string()
+        ))?;
+    
+    // Check for OAuth errors from GitHub
+    if let Some(error) = oauth.get("error").and_then(|v| v.as_str()) {
+        let error_description = oauth
+            .get("error_description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown error");
+        return Err(AppError::InternalError(
+            format!("GitHub OAuth error: {} - {}", error, error_description)
+        ));
+    }
 
-    let client = Octocrab::builder()
-        .user_access_token(oauth_creds.access_token.expose_secret())
+    let gh_client = Octocrab::builder()
+        .user_access_token(access_token.to_string())
         .build()
         .map_err(|e| AppError::InternalError(format!("Failed to build GitHub client: {}", e)))?;
 
-    let gh_user = client
+    let gh_user = gh_client
         .current()
         .user()
         .await
