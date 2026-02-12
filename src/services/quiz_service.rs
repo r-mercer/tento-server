@@ -81,4 +81,9 @@ impl QuizService {
             message: "Draft created successfully and processing started".to_string(),
         })
     }
+
+    pub async fn update_quiz(&self, quiz: Quiz) -> AppResult<Quiz> {
+        let updated_quiz = self.repository.update(quiz).await?;
+        Ok(updated_quiz)
+    }
 }

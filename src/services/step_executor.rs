@@ -1,11 +1,12 @@
 use crate::{
     app_state::AppState,
-    repositories::summary_document_respository,
+    models::domain::{summary_document::SummaryDocument, Quiz},
     services::agent_orchestrator_service::{AgentJob, JobStep},
 };
+use async_graphql::InputType;
 use serde_json::json;
+use uuid::Uuid;
 
-/// Maps step names to their corresponding step types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JobStepType {
     CreateQuizDraft,
@@ -15,7 +16,7 @@ pub enum JobStepType {
 }
 
 impl JobStepType {
-    /// Parse a step name into a JobStepType
+
     pub fn from_step_name(name: &str) -> Option<Self> {
         match name {
             "create_quiz_draft" => Some(JobStepType::CreateQuizDraft),
@@ -27,7 +28,6 @@ impl JobStepType {
     }
 }
 
-/// Trait for executing job steps
 pub trait StepExecutor: Send + Sync {
     fn execute_step(
         &self,
@@ -37,11 +37,9 @@ pub trait StepExecutor: Send + Sync {
     ) -> impl std::future::Future<Output = Result<serde_json::Value, String>> + Send;
 }
 
-/// Handler for dispatching and executing job steps
 pub struct StepHandler;
 
 impl StepHandler {
-    /// Execute a step and return its result
     pub async fn execute(
         step_type: JobStepType,
         step: &JobStep,
@@ -69,8 +67,6 @@ impl StepHandler {
     ) -> Result<serde_json::Value, String> {
         log::info!("Executing create_quiz_draft step for job {}", job.job_id);
 
-        // The quiz was already created when create_quiz_draft was called in QuizService
-        // This handler just validates and stores the quiz_id in results
         let quiz_id = job
             .results
             .get("quiz_id")
@@ -92,21 +88,32 @@ impl StepHandler {
             job.job_id
         );
 
-        // Get URL from quiz (would need quiz fetch first - placeholder for now)
-        // For now, just call the model service's website summariser
-        // TODO: Extract URL from quiz metadata
+        let quiz_id = job
+            .results
+            .get("quiz_id")
+            .ok_or_else(|| "Quiz ID not found in job results".to_string())?;
+
+        // let quiz: Quiz = app_state.quiz_service.get_quiz(Uuid::quiz_id).await.map_err(|e| format!("Failed to fetch quiz: {}", e))?;
+        let quiz: Quiz = app_state
+            .quiz_service
+            .get_quiz(Uuid::parse_str(&quiz_id.to_string()).unwrap().as_ref())
+            .await
+            .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
+
         match app_state.model_service.website_summariser().await {
             Ok(summary) => {
                 log::info!(
                     "Successfully created summary document for job {}",
                     job.job_id
                 );
+
+                let new_doc = SummaryDocument::new_summary_document(&quiz.url, quiz.id, &summary);
                 app_state
-                    .summary_document_repository
-                    .create_summary_document(summary.clone())
+                    .summary_document_service
+                    .create_summary_document(new_doc.clone())
                     .await
                     .map_err(|e| format!("Failed to save summary document: {}", e))?;
-                Ok(json!({ "summary": summary }))
+                Ok(json!({ "summary_id": new_doc.id }))
             }
             Err(e) => Err(format!("Failed to create summary: {}", e)),
         }
@@ -115,47 +122,105 @@ impl StepHandler {
     async fn handle_create_quiz_questions(
         _step: &JobStep,
         job: &AgentJob,
-        _app_state: &AppState,
+        app_state: &AppState,
     ) -> Result<serde_json::Value, String> {
         log::info!(
             "Executing create_quiz_questions step for job {}",
             job.job_id
         );
 
-        // Extract quiz and summary from job results
-        let _quiz_id = job
+        let quiz_id_value = job
             .results
             .get("quiz_id")
             .ok_or_else(|| "Quiz ID not found in job results".to_string())?;
 
-        let _summary = job
+        let summary_id_value = job
             .results
-            .get("summary")
+            .get("summary_id")
             .ok_or_else(|| "Summary not found in job results".to_string())?;
 
-        // TODO: Call model_service.quiz_generator with quiz and summary
-        // For now, placeholder implementation
-        Ok(json!({
-            "status": "quiz_fields_generated",
-            "questions_generated": 0
-        }))
+        // Parse UUIDs
+        let quiz_id = Uuid::parse_str(
+            quiz_id_value
+                .as_str()
+                .ok_or_else(|| "Invalid quiz_id format".to_string())?,
+        )
+        .map_err(|e| format!("Failed to parse quiz_id: {}", e))?;
+
+        let summary_id = Uuid::parse_str(
+            summary_id_value
+                .as_str()
+                .ok_or_else(|| "Invalid summary_id format".to_string())?,
+        )
+        .map_err(|e| format!("Failed to parse summary_id: {}", e))?;
+
+        let quiz = app_state
+            .quiz_service
+            .get_quiz(&quiz_id)
+            .await
+            .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
+
+        let summary_document = app_state
+            .summary_document_service
+            .get_summary_document(&summary_id)
+            .await
+            .map_err(|e| format!("Failed to fetch summary document: {}", e))?;
+
+        match app_state
+            .model_service
+            .quiz_generator(quiz, summary_document)
+            .await
+        {
+            Ok(response) => {
+                log::info!(
+                    "Successfully generated quiz questions for job {}",
+                    job.job_id
+                );
+                Ok(json!({
+                    "status": "quiz_fields_generated",
+                    "response": response
+                }))
+            }
+            Err(e) => Err(format!("Failed to generate quiz questions: {}", e)),
+        }
     }
 
     async fn handle_finalize_quiz(
         _step: &JobStep,
         job: &AgentJob,
-        _app_state: &AppState,
+        app_state: &AppState,
     ) -> Result<serde_json::Value, String> {
         log::info!("Executing finalize_quiz step for job {}", job.job_id);
 
-        // Extract quiz_id from results
-        let _quiz_id = job
+        let quiz_id_value = job
             .results
             .get("quiz_id")
             .ok_or_else(|| "Quiz ID not found in job results".to_string())?;
 
-        // TODO: Fetch quiz from database, update status from Draft to Ready, save back to database
-        // For now, placeholder implementation
+        let quiz_id = Uuid::parse_str(
+            quiz_id_value
+                .as_str()
+                .ok_or_else(|| "Invalid quiz_id format".to_string())?,
+        )
+        .map_err(|e| format!("Failed to parse quiz_id: {}", e))?;
+
+        let mut quiz = app_state
+            .quiz_service
+            .get_quiz(&quiz_id)
+            .await
+            .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
+
+        quiz.status = crate::models::domain::quiz::QuizStatus::Ready;
+        quiz.modified_at = Some(chrono::Utc::now());
+
+        app_state
+            .quiz_service
+            .update_quiz(quiz)
+            .await
+            .map_err(|e| format!("Failed to update quiz: {}", e))?;
+
+        log::info!("Successfully finalized quiz {} for job {}", quiz_id, job.job_id);
+
         Ok(json!({
             "status": "quiz_finalized",
             "quiz_status": "ready"
