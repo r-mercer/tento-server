@@ -4,9 +4,9 @@ use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct QuizAttempt {
-    pub id: Uuid,
-    pub user_id: Uuid,
-    pub quiz_id: Uuid,
+    pub id: String,
+    pub user_id: String,
+    pub quiz_id: String,
     pub points_earned: i16,
     pub total_possible: i16,
     pub passed: bool,
@@ -21,9 +21,9 @@ pub struct QuizAttempt {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct QuizAttemptQuestion {
-    pub id: Uuid,
-    pub quiz_question_id: Uuid,
-    pub selected_option_ids: Vec<Uuid>,
+    pub id: String,
+    pub quiz_question_id: String,
+    pub selected_option_ids: Vec<String>,
     pub is_correct: bool,
     pub points_earned: i16,
 }

@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
 pub struct SummaryDocument {
-    pub id: Uuid,
-    pub quiz_id: Uuid,
+    pub id: String,
+    pub quiz_id: String,
     pub url: String,
     pub content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -22,8 +22,8 @@ pub struct SummaryDocument {
 impl SummaryDocument {
     pub fn new_summary_document(url: &str, quiz_id: Uuid, content: &str) -> Self {
         SummaryDocument {
-            id: Uuid::new_v4(),
-            quiz_id,
+            id: Uuid::new_v4().to_string(),
+            quiz_id: quiz_id.to_string(),
             content: content.to_string(),
             url: url.to_string(),
             created_at: Some(Utc::now()),

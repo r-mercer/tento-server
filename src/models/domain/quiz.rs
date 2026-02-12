@@ -9,9 +9,9 @@ use crate::models::domain::quiz_question::QuizQuestion;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
 pub struct Quiz {
-    pub id: Uuid,                    // Either set by db, client or API
+    pub id: String,                  // Either set by db, client or API
     pub name: String,                // Friendly name, set on create
-    pub created_by_user_id: Uuid,    // User who created the quiz
+    pub created_by_user_id: String,  // User who created the quiz
     pub title: Option<String>,       // Set on create
     pub description: Option<String>, // Set on create
     pub question_count: i16,         // Set on draft, mutable
@@ -38,16 +38,16 @@ pub enum QuizStatus {
 impl Quiz {
     pub fn new_draft(
         name: &str,
-        created_by_user_id: Uuid,
+        created_by_user_id: &str,
         question_count: i16,
         required_score: i16,
         attempt_limit: i16,
         url: &str,
     ) -> Self {
         Quiz {
-            id: Uuid::new_v4(),
+            id: Uuid::new_v4().to_string(),
             name: name.to_string(),
-            created_by_user_id,
+            created_by_user_id: created_by_user_id.to_string(),
             title: None,
             description: None,
             question_count,

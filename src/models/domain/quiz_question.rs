@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
 pub struct QuizQuestion {
-    pub id: Uuid,
+    pub id: String,
     pub title: String,
     pub description: String,
     pub question_type: QuizQuestionType,
@@ -22,7 +22,7 @@ pub struct QuizQuestion {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
 pub struct QuizQuestionOption {
-    pub id: Uuid,
+    pub id: String,
     pub text: String,
     pub correct: bool,
     pub explanation: String, // explanation for why this option is correct or incorrect
