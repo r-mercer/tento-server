@@ -14,7 +14,6 @@ pub enum JobStepType {
 }
 
 impl JobStepType {
-
     pub fn from_step_name(name: &str) -> Option<Self> {
         match name {
             "create_quiz_draft" => Some(JobStepType::CreateQuizDraft),
@@ -99,7 +98,7 @@ impl StepHandler {
             .await
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
 
-        match app_state.model_service.website_summariser().await {
+        match app_state.model_service.website_summariser(&quiz.url).await {
             Ok(summary) => {
                 log::info!(
                     "Successfully created summary document for job {}",
@@ -202,7 +201,11 @@ impl StepHandler {
             .await
             .map_err(|e| format!("Failed to update quiz: {}", e))?;
 
-        log::info!("Successfully finalized quiz {} for job {}", quiz_id, job.job_id);
+        log::info!(
+            "Successfully finalized quiz {} for job {}",
+            quiz_id,
+            job.job_id
+        );
 
         Ok(json!({
             "status": "quiz_finalized",

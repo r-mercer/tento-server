@@ -13,10 +13,7 @@ use crate::{
     config::Config,
     constants::{prompts::QUIZ_GENERATOR_PROMPT, WEBSITE_SUMMARISER_PROMPT},
     errors::{AppError, AppResult},
-    models::domain::{
-        summary_document::SummaryDocument,
-        Quiz,
-    },
+    models::domain::{summary_document::SummaryDocument, Quiz},
 };
 
 pub struct ModelService {
@@ -63,15 +60,14 @@ impl ModelService {
         Ok(content)
     }
 
-    pub async fn website_summariser(&self) -> AppResult<String> {
+    pub async fn website_summariser(&self, url_string: &str) -> AppResult<String> {
         let summ_client = Client::new();
-        let url_string = "";
         let response: Value = summ_client
             .chat()
             .create_byot(json!({
                 "messages": [
                     {
-                        "role": "website_content_summariser",
+                        "role": "system_prompt",
                         "content": WEBSITE_SUMMARISER_PROMPT
                     },
                     {
