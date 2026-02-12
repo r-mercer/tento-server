@@ -88,15 +88,21 @@ impl StepHandler {
             job.job_id
         );
 
-        let quiz_id = job
+        let quiz_id_value = job
             .results
             .get("quiz_id")
             .ok_or_else(|| "Quiz ID not found in job results".to_string())?;
 
-        // let quiz: Quiz = app_state.quiz_service.get_quiz(Uuid::quiz_id).await.map_err(|e| format!("Failed to fetch quiz: {}", e))?;
+        let quiz_id = Uuid::parse_str(
+            quiz_id_value
+                .as_str()
+                .ok_or_else(|| "Invalid quiz_id format".to_string())?,
+        )
+        .map_err(|e| format!("Failed to parse quiz_id: {}", e))?;
+
         let quiz: Quiz = app_state
             .quiz_service
-            .get_quiz(Uuid::parse_str(&quiz_id.to_string()).unwrap().as_ref())
+            .get_quiz(&quiz_id)
             .await
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
 
