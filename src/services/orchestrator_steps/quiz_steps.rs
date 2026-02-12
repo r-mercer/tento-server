@@ -11,8 +11,8 @@ const FINALIZATION_RETRIES: u32 = 2;
 pub fn create_quiz_generation_steps() -> Vec<JobStep> {
     vec![
         create_draft_step(),
-        fetch_summary_step(),
-        generate_quiz_fields_step(),
+        create_summary_document_step(),
+        create_quiz_questions_step(),
         finalize_quiz_step(),
     ]
 }
@@ -24,15 +24,15 @@ fn create_draft_step() -> JobStep {
         .with_timeout(DRAFT_CREATION_TIMEOUT)
 }
 
-fn fetch_summary_step() -> JobStep {
-    JobStep::new("fetch_summary_document")
-        .with_description("Fetch and create summary document from provided URL via model service")
+fn create_summary_document_step() -> JobStep {
+    JobStep::new("create_summary_document")
+        .with_description("Create summary document from provided URL via model service")
         .with_max_retries(DEFAULT_RETRIES)
         .with_timeout(SUMMARY_FETCH_TIMEOUT)
 }
 
-fn generate_quiz_fields_step() -> JobStep {
-    JobStep::new("generate_quiz_fields")
+fn create_quiz_questions_step() -> JobStep {
+    JobStep::new("create_quiz_questions")
         .with_description("Generate quiz questions and fields via model service call")
         .with_max_retries(DEFAULT_RETRIES)
         .with_timeout(QUIZ_GENERATION_TIMEOUT)

@@ -4,7 +4,9 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
+use crate::app_state::AppState;
 use crate::repositories::AgentJobRepository;
+use crate::services::step_executor::{JobStepType, StepHandler};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -113,6 +115,7 @@ impl AgentJob {
 pub struct AgentOrchestrator {
     repository: Arc<dyn AgentJobRepository>,
     worker_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
+    app_state: Arc<RwLock<Option<Arc<AppState>>>>,
 }
 
 impl AgentOrchestrator {
@@ -121,30 +124,47 @@ impl AgentOrchestrator {
         Self {
             repository,
             worker_handle: Arc::new(RwLock::new(None)),
+            app_state: Arc::new(RwLock::new(None)),
         }
     }
 
-    /// Create a new job from steps
+    /// Set the app state for the orchestrator (called during app initialization)
+    pub async fn set_app_state(&self, app_state: Arc<AppState>) {
+        let mut state = self.app_state.write().await;
+        *state = Some(app_state);
+    }
+
     pub async fn create_job(&self, steps: Vec<JobStep>) -> Result<String, String> {
         self.repository.create_job(steps).await
     }
 
-    /// Get job by ID
+    pub async fn set_job_metadata(
+        &self,
+        job_id: &str,
+        key: &str,
+        value: serde_json::Value,
+    ) -> Result<(), String> {
+        let mut job = self
+            .repository
+            .get_job(job_id)
+            .await?
+            .ok_or_else(|| format!("Job {} not found", job_id))?;
+        job.results.insert(key.to_string(), value);
+        self.repository.save(&job).await
+    }
+
     pub async fn get_job(&self, job_id: &str) -> Result<Option<AgentJob>, String> {
         self.repository.get_job(job_id).await
     }
 
-    /// Get job status
     pub async fn get_job_status(&self, job_id: &str) -> Result<Option<JobStatus>, String> {
         self.repository.get_job_status(job_id).await
     }
 
-    /// Start executing a job
     pub async fn start_job(&self, job_id: &str) -> Result<(), String> {
         self.repository.start_job(job_id).await
     }
 
-    /// Complete current step and advance to next
     pub async fn complete_step(
         &self,
         job_id: &str,
@@ -153,22 +173,18 @@ impl AgentOrchestrator {
         self.repository.complete_step(job_id, result).await
     }
 
-    /// Fail current step with error message
     pub async fn fail_step(&self, job_id: &str, error: String) -> Result<(), String> {
         self.repository.fail_step(job_id, error).await
     }
 
-    /// Pause a running job
     pub async fn pause_job(&self, job_id: &str) -> Result<(), String> {
         self.repository.pause_job(job_id).await
     }
 
-    /// Resume a paused job
     pub async fn resume_job(&self, job_id: &str) -> Result<(), String> {
         self.repository.resume_job(job_id).await
     }
 
-    /// List jobs with optional status filter
     pub async fn list_jobs(
         &self,
         status_filter: Option<JobStatus>,
@@ -176,23 +192,104 @@ impl AgentOrchestrator {
         self.repository.list_jobs(status_filter).await
     }
 
-    /// Delete a job
     pub async fn delete_job(&self, job_id: &str) -> Result<(), String> {
         self.repository.delete_job(job_id).await
     }
 
-    /// Start background worker to process pending jobs
+    /// Start background worker to process running jobs
     /// This should be called once at application startup
     pub async fn start_worker(&self) -> Result<(), String> {
+        log::info!("Starting background worker");
+
         let repository = self.repository.clone();
+        let app_state = self.app_state.clone();
 
         let worker_handle = tokio::spawn(async move {
             loop {
-                // Poll for pending jobs every 5 seconds
-                // TODO: Implement actual job processing logic
+                // Poll for running jobs every 5 seconds
                 if let Ok(jobs) = repository.list_jobs(Some(JobStatus::Running)).await {
-                    // Process jobs here
-                    let _ = jobs;
+                    for mut job in jobs {
+                        // Get app state for this execution
+                        let app_state_read = app_state.read().await;
+                        let Some(app_state_ref) = app_state_read.as_ref() else {
+                            log::warn!("App state not set for orchestrator");
+                            drop(app_state_read);
+                            continue;
+                        };
+
+                        // Clone to avoid holding the lock during execution
+                        let app_state_clone: Arc<AppState> = app_state_ref.clone();
+                        drop(app_state_read);
+
+                        // Get current step
+                        if let Some(current_step) = job.get_current_step() {
+                            let step_name = current_step.name.clone();
+                            let step_id = current_step.id.clone();
+
+                            // Parse step name to type
+                            if let Some(step_type) = JobStepType::from_step_name(&step_name) {
+                                log::info!(
+                                    "Processing job {} - step {} ({}, attempt {}/{})",
+                                    job.job_id,
+                                    step_id,
+                                    step_name,
+                                    current_step.retry_count + 1,
+                                    current_step.max_retries + 1
+                                );
+
+                                // Execute the step
+                                match StepHandler::execute(
+                                    step_type,
+                                    current_step,
+                                    &job,
+                                    &app_state_clone,
+                                )
+                                .await
+                                {
+                                    Ok(result) => {
+                                        // Step succeeded - complete it
+                                        if let Err(e) =
+                                            repository.complete_step(&job.job_id, Some(result)).await
+                                        {
+                                            log::error!("Failed to complete step: {}", e);
+                                        } else {
+                                            log::info!(
+                                                "Step {} completed for job {}",
+                                                step_name,
+                                                job.job_id
+                                            );
+                                        }
+                                    }
+                                    Err(error) => {
+                                        log::error!(
+                                            "Step {} failed for job {}: {}",
+                                            step_name,
+                                            job.job_id,
+                                            error
+                                        );
+
+                                        // fail_step will handle retry logic internally
+                                        if let Err(e) = repository.fail_step(&job.job_id, error).await
+                                        {
+                                            log::error!("Failed to mark step as failed: {}", e);
+                                        }
+                                    }
+                                }
+                            } else {
+                                log::error!("Unknown step type: {}", step_name);
+                                let error = format!("Unknown step type: {}", step_name);
+                                let _ = repository.fail_step(&job.job_id, error).await;
+                            }
+                        } else {
+                            log::info!("Job {} has no more steps - marking as completed", job.job_id);
+                            // All steps done - mark job as completed
+                            job.status = JobStatus::Completed;
+                            job.completed_at = Some(Utc::now());
+                            if let Err(e) = repository.save(&job).await {
+                                log::error!("Failed to save completed job: {}", e);
+                            }
+                        }
+                    }
                 }
 
                 tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
@@ -213,5 +310,3 @@ impl AgentOrchestrator {
         Ok(())
     }
 }
-
-

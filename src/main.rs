@@ -1,6 +1,6 @@
-use actix_web::{middleware::Logger, web, App, HttpMessage, HttpServer};
 use actix_cors::Cors;
 use actix_web::http;
+use actix_web::{middleware::Logger, web, App, HttpMessage, HttpServer};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use std::env;
 
@@ -35,18 +35,15 @@ async fn graphql_handler(
     schema.execute(request).await.into()
 }
 
-
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Load .env.local file if it exists
     dotenvy::from_filename(".env.local").ok();
 
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     let config = Config::from_env();
 
-    // Will panic if secrets aren't set
+    // Panic if secrets aren't set
     if env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string()) != "test" {
         config.validate_for_production();
         log::info!("Configuration validated successfully");
@@ -56,7 +53,16 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Failed to initialize application state");
 
-    let schema = create_schema(app_state.clone());
+    let app_state = std::sync::Arc::new(app_state);
+
+    // Set app state on orchestrator and start worker
+    app_state.agent_orchestrator.set_app_state(app_state.clone()).await;
+    app_state.agent_orchestrator
+        .start_worker()
+        .await
+        .expect("Failed to start background worker");
+
+    let schema = create_schema((*app_state).clone());
     let jwt_service = app_state.jwt_service.clone();
 
     let host = config.web_server_host.clone();
@@ -82,7 +88,7 @@ async fn main() -> std::io::Result<()> {
                     ])
                     .expose_headers(vec![http::header::AUTHORIZATION])
                     .max_age(3600)
-                    .supports_credentials()
+                    .supports_credentials(),
             )
             // Public routes
             .service(handlers::health_check)

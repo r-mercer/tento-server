@@ -62,6 +62,12 @@ impl QuizService {
             .await
             .map_err(|e| AppError::InternalError(format!("Job creation failed: {}", e)))?;
 
+        // Store quiz metadata in job
+        self.orchestrator
+            .set_job_metadata(&job_id, "quiz_id", serde_json::json!(created_quiz.id.to_string()))
+            .await
+            .map_err(|e| AppError::InternalError(format!("Failed to set job metadata: {}", e)))?;
+
         self.orchestrator
             .start_job(&job_id)
             .await

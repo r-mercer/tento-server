@@ -17,6 +17,7 @@ pub trait AgentJobRepository: Send + Sync {
     async fn resume_job(&self, job_id: &str) -> Result<(), String>;
     async fn list_jobs(&self, status_filter: Option<JobStatus>) -> Result<Vec<AgentJob>, String>;
     async fn delete_job(&self, job_id: &str) -> Result<(), String>;
+    async fn save(&self, job: &AgentJob) -> Result<(), String>;
 }
 
 pub struct MongoAgentJobRepository {
@@ -175,7 +176,7 @@ impl AgentJobRepository for MongoAgentJobRepository {
     }
 
     async fn fail_step(&self, job_id: &str, error: String) -> Result<(), String> {
-        let job = self
+        let mut job = self
             .get_job(job_id)
             .await?
             .ok_or_else(|| format!("Job {} not found", job_id))?;
@@ -184,19 +185,48 @@ impl AgentJobRepository for MongoAgentJobRepository {
             return Err("Job is not running".to_string());
         }
 
+        // Increment retry count for current step
+        if let Some(_current_step) = job.get_current_step() {
+            job.steps[job.current_step_index].retry_count += 1;
+        }
+
         let completed_at: String = Utc::now().to_string();
 
-        self.collection
-            .update_one(
-                doc! { "job_id": job_id },
+        // Check if we should keep retrying or fail the entire job
+        let update_doc = if let Some(current_step) = job.get_current_step() {
+            if current_step.retry_count >= current_step.max_retries {
+                // Max retries exceeded - fail the job
                 doc! {
                     "$set": {
                         "status": "failed",
-                        "error_message": error,
-                        "completed_at": completed_at,
+                        "error_message": &error,
+                        "completed_at": &completed_at,
+                        "steps": mongodb::bson::to_bson(&job.steps)
+                            .unwrap_or(mongodb::bson::Bson::Array(vec![])),
                     }
-                },
-            )
+                }
+            } else {
+                // Keep retrying - stay in running state but increment retry count
+                doc! {
+                    "$set": {
+                        "steps": mongodb::bson::to_bson(&job.steps)
+                            .unwrap_or(mongodb::bson::Bson::Array(vec![])),
+                        "error_message": &error,
+                    }
+                }
+            }
+        } else {
+            doc! {
+                "$set": {
+                    "status": "failed",
+                    "error_message": &error,
+                    "completed_at": &completed_at,
+                }
+            }
+        };
+
+        self.collection
+            .update_one(doc! { "job_id": job_id }, update_doc)
             .await
             .map_err(|e| format!("Failed to update job: {}", e))?;
 
@@ -288,6 +318,18 @@ impl AgentJobRepository for MongoAgentJobRepository {
         if result.deleted_count == 0 {
             return Err(format!("Job {} not found", job_id));
         }
+
+        Ok(())
+    }
+
+    async fn save(&self, job: &AgentJob) -> Result<(), String> {
+        self.collection
+            .replace_one(
+                doc! { "job_id": &job.job_id },
+                job,
+            )
+            .await
+            .map_err(|e| format!("Failed to save job: {}", e))?;
 
         Ok(())
     }
