@@ -3,9 +3,7 @@ use crate::{
     models::domain::{summary_document::SummaryDocument, Quiz},
     services::agent_orchestrator_service::{AgentJob, JobStep},
 };
-use async_graphql::InputType;
 use serde_json::json;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JobStepType {
@@ -88,17 +86,12 @@ impl StepHandler {
             job.job_id
         );
 
-        let quiz_id_value = job
+        let quiz_id = job
             .results
             .get("quiz_id")
-            .ok_or_else(|| "Quiz ID not found in job results".to_string())?;
-
-        let quiz_id = Uuid::parse_str(
-            quiz_id_value
-                .as_str()
-                .ok_or_else(|| "Invalid quiz_id format".to_string())?,
-        )
-        .map_err(|e| format!("Failed to parse quiz_id: {}", e))?;
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "Invalid or missing quiz_id in job results".to_string())?
+            .to_string();
 
         let quiz: Quiz = app_state
             .quiz_service
@@ -113,7 +106,7 @@ impl StepHandler {
                     job.job_id
                 );
 
-                let new_doc = SummaryDocument::new_summary_document(&quiz.url, quiz.id, &summary);
+                let new_doc = SummaryDocument::new_summary_document(&quiz.url, &quiz.id, &summary);
                 app_state
                     .summary_document_service
                     .create_summary_document(new_doc.clone())
@@ -135,30 +128,19 @@ impl StepHandler {
             job.job_id
         );
 
-        let quiz_id_value = job
+        let quiz_id = job
             .results
             .get("quiz_id")
-            .ok_or_else(|| "Quiz ID not found in job results".to_string())?;
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "Invalid or missing quiz_id in job results".to_string())?
+            .to_string();
 
-        let summary_id_value = job
+        let summary_id = job
             .results
             .get("summary_id")
-            .ok_or_else(|| "Summary not found in job results".to_string())?;
-
-        // Parse UUIDs
-        let quiz_id = Uuid::parse_str(
-            quiz_id_value
-                .as_str()
-                .ok_or_else(|| "Invalid quiz_id format".to_string())?,
-        )
-        .map_err(|e| format!("Failed to parse quiz_id: {}", e))?;
-
-        let summary_id = Uuid::parse_str(
-            summary_id_value
-                .as_str()
-                .ok_or_else(|| "Invalid summary_id format".to_string())?,
-        )
-        .map_err(|e| format!("Failed to parse summary_id: {}", e))?;
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "Invalid or missing summary_id in job results".to_string())?
+            .to_string();
 
         let quiz = app_state
             .quiz_service
@@ -198,17 +180,12 @@ impl StepHandler {
     ) -> Result<serde_json::Value, String> {
         log::info!("Executing finalize_quiz step for job {}", job.job_id);
 
-        let quiz_id_value = job
+        let quiz_id = job
             .results
             .get("quiz_id")
-            .ok_or_else(|| "Quiz ID not found in job results".to_string())?;
-
-        let quiz_id = Uuid::parse_str(
-            quiz_id_value
-                .as_str()
-                .ok_or_else(|| "Invalid quiz_id format".to_string())?,
-        )
-        .map_err(|e| format!("Failed to parse quiz_id: {}", e))?;
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "Invalid or missing quiz_id in job results".to_string())?
+            .to_string();
 
         let mut quiz = app_state
             .quiz_service

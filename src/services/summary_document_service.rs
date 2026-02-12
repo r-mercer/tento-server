@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use uuid::Uuid;
 
 use crate::{
     errors::{AppError, AppResult},
@@ -16,7 +15,7 @@ impl SummaryDocumentService {
         Self { repository }
     }
 
-    pub async fn get_summary_document(&self, id: &Uuid) -> AppResult<SummaryDocument> {
+    pub async fn get_summary_document(&self, id: &str) -> AppResult<SummaryDocument> {
         let document = self
             .repository
             .find_by_id(id)

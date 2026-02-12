@@ -1,7 +1,6 @@
 use async_graphql::{Enum, SimpleObject};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
 pub struct QuizQuestion {

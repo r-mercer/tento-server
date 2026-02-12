@@ -1,29 +1,28 @@
 use async_trait::async_trait;
 use futures::TryStreamExt;
 use mongodb::{bson::doc, options::IndexOptions, Collection, IndexModel};
-use uuid::Uuid;
 
 use crate::{db::Database, errors::AppResult, models::domain::quiz_attempt::QuizAttempt};
 
 #[async_trait]
 pub trait QuizAttemptRepository: Send + Sync {
     async fn create(&self, attempt: QuizAttempt) -> AppResult<QuizAttempt>;
-    async fn find_by_id(&self, id: &Uuid) -> AppResult<Option<QuizAttempt>>;
+    async fn find_by_id(&self, id: &str) -> AppResult<Option<QuizAttempt>>;
     async fn find_by_user_and_quiz(
         &self,
-        user_id: Uuid,
-        quiz_id: Uuid,
+        user_id: &str,
+        quiz_id: &str,
     ) -> AppResult<Vec<QuizAttempt>>;
     async fn has_user_attempted_quiz(
         &self,
-        user_id: Uuid,
-        quiz_id: Uuid,
+        user_id: &str,
+        quiz_id: &str,
     ) -> AppResult<bool>;
-    async fn count_user_attempts(&self, user_id: Uuid, quiz_id: Uuid) -> AppResult<usize>;
+    async fn count_user_attempts(&self, user_id: &str, quiz_id: &str) -> AppResult<usize>;
     async fn get_user_attempts(
         &self,
-        user_id: Uuid,
-        quiz_id: Option<Uuid>,
+        user_id: &str,
+        quiz_id: Option<&str>,
         offset: i64,
         limit: i64,
     ) -> AppResult<(Vec<QuizAttempt>, i64)>;
@@ -86,25 +85,25 @@ impl QuizAttemptRepository for MongoQuizAttemptRepository {
         Ok(attempt)
     }
 
-    async fn find_by_id(&self, id: &Uuid) -> AppResult<Option<QuizAttempt>> {
+    async fn find_by_id(&self, id: &str) -> AppResult<Option<QuizAttempt>> {
         let attempt = self
             .collection
-            .find_one(doc! { "id": id.to_string() })
+            .find_one(doc! { "id": id })
             .await?;
         Ok(attempt)
     }
 
     async fn find_by_user_and_quiz(
         &self,
-        user_id: Uuid,
-        quiz_id: Uuid,
+        user_id: &str,
+        quiz_id: &str,
     ) -> AppResult<Vec<QuizAttempt>> {
         let attempts = self
             .collection
             .find(
                 doc! {
-                    "user_id": user_id.to_string(),
-                    "quiz_id": quiz_id.to_string()
+                    "user_id": user_id,
+                    "quiz_id": quiz_id
                 },
             )
             .await?
@@ -115,28 +114,28 @@ impl QuizAttemptRepository for MongoQuizAttemptRepository {
 
     async fn has_user_attempted_quiz(
         &self,
-        user_id: Uuid,
-        quiz_id: Uuid,
+        user_id: &str,
+        quiz_id: &str,
     ) -> AppResult<bool> {
         let attempt = self
             .collection
             .find_one(
                 doc! {
-                    "user_id": user_id.to_string(),
-                    "quiz_id": quiz_id.to_string()
+                    "user_id": user_id,
+                    "quiz_id": quiz_id
                 },
             )
             .await?;
         Ok(attempt.is_some())
     }
 
-    async fn count_user_attempts(&self, user_id: Uuid, quiz_id: Uuid) -> AppResult<usize> {
+    async fn count_user_attempts(&self, user_id: &str, quiz_id: &str) -> AppResult<usize> {
         let count = self
             .collection
             .count_documents(
                 doc! {
-                    "user_id": user_id.to_string(),
-                    "quiz_id": quiz_id.to_string()
+                    "user_id": user_id,
+                    "quiz_id": quiz_id
                 },
             )
             .await?;
@@ -145,15 +144,15 @@ impl QuizAttemptRepository for MongoQuizAttemptRepository {
 
     async fn get_user_attempts(
         &self,
-        user_id: Uuid,
-        quiz_id: Option<Uuid>,
+        user_id: &str,
+        quiz_id: Option<&str>,
         offset: i64,
         limit: i64,
     ) -> AppResult<(Vec<QuizAttempt>, i64)> {
-        let mut filter = doc! { "user_id": user_id.to_string() };
+        let mut filter = doc! { "user_id": user_id };
 
         if let Some(qid) = quiz_id {
-            filter.insert("quiz_id", qid.to_string());
+            filter.insert("quiz_id", qid);
         }
 
         let total = self.collection.count_documents(filter.clone()).await?;

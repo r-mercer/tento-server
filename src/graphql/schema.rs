@@ -1,5 +1,4 @@
 use async_graphql::{Context, EmptySubscription, Object, Schema as GraphQLSchema, ID};
-use uuid::Uuid;
 
 use crate::{
     app_state::AppState,
@@ -60,10 +59,8 @@ impl QueryRoot {
 
         extract_claims_from_context(ctx)?;
 
-        let uuid = Uuid::parse_str(&id).map_err(|_| {
-            crate::errors::AppError::ValidationError("Invalid UUID format".to_string())
-        })?;
-        state.quiz_service.get_quiz(&uuid).await
+        let id_str = parse_id(&id)?;
+        state.quiz_service.get_quiz(&id_str).await
     }
 
     // Get quiz for taking (without answers)
@@ -71,8 +68,8 @@ impl QueryRoot {
         let state = ctx.data::<AppState>()?;
         extract_claims_from_context(ctx)?;
 
-        let uuid = parse_id(&id)?;
-        let quiz = state.quiz_service.get_quiz(&uuid).await?;
+        let id_str = parse_id(&id)?;
+        let quiz = state.quiz_service.get_quiz(&id_str).await?;
 
         validate_quiz_available_for_taking(&quiz.status)?;
 
@@ -84,18 +81,18 @@ impl QueryRoot {
         let state = ctx.data::<AppState>()?;
         let claims = extract_claims_from_context(ctx)?;
 
-        let quiz_uuid = parse_id(&id)?;
-        let quiz = state.quiz_service.get_quiz(&quiz_uuid).await?;
-        let user_id = parse_id(&claims.sub)?;
+        let quiz_id = parse_id(&id)?;
+        let quiz = state.quiz_service.get_quiz(&quiz_id).await?;
+        let user_id = claims.sub.clone();
 
         // Check if user has attempted this quiz
         let has_attempted = state
             .quiz_attempt_repository
-            .has_user_attempted_quiz(user_id, quiz_uuid)
+            .has_user_attempted_quiz(&user_id, &quiz_id)
             .await?;
 
         // Authorization: User created quiz OR has attempted it
-        can_view_quiz_results(user_id, quiz.created_by_user_id, has_attempted)?;
+        can_view_quiz_results(&user_id, &quiz.created_by_user_id, has_attempted)?;
 
         Ok(quiz)
     }
@@ -111,7 +108,7 @@ impl QueryRoot {
         let state = ctx.data::<AppState>()?;
         let claims = extract_claims_from_context(ctx)?;
 
-        let user_id = parse_id(&claims.sub)?;
+        let user_id = claims.sub.clone();
 
         let offset = offset.unwrap_or(0).max(0);
         let limit = limit.unwrap_or(10).clamp(1, 50);
@@ -120,7 +117,7 @@ impl QueryRoot {
 
         let (attempts, total) = state
             .quiz_attempt_repository
-            .get_user_attempts(user_id, quiz_id_opt, offset, limit)
+            .get_user_attempts(&user_id, quiz_id_opt.as_deref(), offset, limit)
             .await?;
 
         let data = attempts
@@ -147,17 +144,17 @@ impl QueryRoot {
         let state = ctx.data::<AppState>()?;
         let claims = extract_claims_from_context(ctx)?;
 
-        let attempt_uuid = parse_id(&attempt_id)?;
-        let user_id = parse_id(&claims.sub)?;
+        let attempt_id_str = parse_id(&attempt_id)?;
+        let user_id = claims.sub.clone();
 
         let attempt = state
             .quiz_attempt_repository
-            .find_by_id(&attempt_uuid)
+            .find_by_id(&attempt_id_str)
             .await?
             .ok_or(AppError::NotFound("Quiz attempt not found".to_string()))?;
 
         // Authorization: User must own the attempt
-        can_view_quiz_attempt(user_id, attempt.user_id)?;
+        can_view_quiz_attempt(&user_id, &attempt.user_id)?;
 
         let quiz = state
             .quiz_service
@@ -175,11 +172,11 @@ impl QueryRoot {
                     .and_then(|qs| qs.iter().find(|q| q.id == qa.quiz_question_id))
                     .ok_or(AppError::NotFound("Question not found".to_string()))?;
 
-                let correct_option_ids: Vec<Uuid> = question
+                let correct_option_ids: Vec<String> = question
                     .options
                     .iter()
                     .filter(|opt| opt.correct)
-                    .map(|opt| opt.id)
+                    .map(|opt| opt.id.clone())
                     .collect();
 
                 // Get explanation from first explanation available
@@ -191,7 +188,7 @@ impl QueryRoot {
                     .unwrap_or_default();
 
                 Ok(crate::models::dto::response::QuestionAttemptDetail {
-                    question_id: qa.quiz_question_id,
+                    question_id: qa.quiz_question_id.clone(),
                     user_selected_option_ids: qa.selected_option_ids.clone(),
                     correct_option_ids,
                     is_correct: qa.is_correct,
@@ -270,7 +267,7 @@ impl MutationRoot {
         // Check attempt limit
         let attempt_count = state
             .quiz_attempt_repository
-            .count_user_attempts(user_id, quiz_id)
+            .count_user_attempts(&user_id, &quiz_id)
             .await?;
 
         if attempt_count >= quiz.attempt_limit as usize {
@@ -289,8 +286,8 @@ impl MutationRoot {
 
         // Create and persist attempt
         let attempt = QuizAttemptService::create_attempt(
-            user_id,
-            quiz_id,
+            &user_id,
+            &quiz_id,
             points_earned,
             quiz.question_count,
             (attempt_count + 1) as i16,

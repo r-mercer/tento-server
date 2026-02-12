@@ -1,5 +1,4 @@
 use async_graphql::Context;
-use uuid::Uuid;
 
 use crate::{
     auth::Claims,
@@ -33,8 +32,8 @@ pub fn extract_claims_from_context(ctx: &Context<'_>) -> AppResult<Claims> {
 
 /// Check if user is the creator of the quiz or has attempted it
 pub fn can_view_quiz_results(
-    user_id: Uuid,
-    quiz_creator_id: Uuid,
+    user_id: &str,
+    quiz_creator_id: &str,
     has_user_attempted: bool,
 ) -> AppResult<()> {
     if user_id != quiz_creator_id && !has_user_attempted {
@@ -46,7 +45,7 @@ pub fn can_view_quiz_results(
 }
 
 /// Check if user owns the quiz attempt
-pub fn can_view_quiz_attempt(user_id: Uuid, attempt_user_id: Uuid) -> AppResult<()> {
+pub fn can_view_quiz_attempt(user_id: &str, attempt_user_id: &str) -> AppResult<()> {
     if user_id != attempt_user_id {
         return Err(AppError::Forbidden(
             "You can only view your own quiz attempts".to_string(),
@@ -101,34 +100,34 @@ mod tests {
 
     #[test]
     fn test_can_view_quiz_results_as_creator() {
-        let user_id = Uuid::new_v4();
+        let user_id = "550e8400-e29b-41d4-a716-446655440000";
         assert!(can_view_quiz_results(user_id, user_id, false).is_ok());
     }
 
     #[test]
     fn test_can_view_quiz_results_after_attempt() {
-        let user_id = Uuid::new_v4();
-        let quiz_creator = Uuid::new_v4();
+        let user_id = "550e8400-e29b-41d4-a716-446655440000";
+        let quiz_creator = "550e8400-e29b-41d4-a716-446655440001";
         assert!(can_view_quiz_results(user_id, quiz_creator, true).is_ok());
     }
 
     #[test]
     fn test_can_view_quiz_results_forbidden() {
-        let user_id = Uuid::new_v4();
-        let quiz_creator = Uuid::new_v4();
+        let user_id = "550e8400-e29b-41d4-a716-446655440000";
+        let quiz_creator = "550e8400-e29b-41d4-a716-446655440001";
         assert!(can_view_quiz_results(user_id, quiz_creator, false).is_err());
     }
 
     #[test]
     fn test_can_view_quiz_attempt_as_owner() {
-        let user_id = Uuid::new_v4();
+        let user_id = "550e8400-e29b-41d4-a716-446655440000";
         assert!(can_view_quiz_attempt(user_id, user_id).is_ok());
     }
 
     #[test]
     fn test_can_view_quiz_attempt_forbidden() {
-        let user_id = Uuid::new_v4();
-        let attempt_user_id = Uuid::new_v4();
+        let user_id = "550e8400-e29b-41d4-a716-446655440000";
+        let attempt_user_id = "550e8400-e29b-41d4-a716-446655440001";
         assert!(can_view_quiz_attempt(user_id, attempt_user_id).is_err());
     }
 }

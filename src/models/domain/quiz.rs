@@ -1,8 +1,5 @@
 use async_graphql::{Enum, SimpleObject};
-use uuid::Uuid;
-// use bson::{uuid, Uuid};
 use chrono::{DateTime, Utc};
-// use mongodb::bson::Uuid;
 use serde::{Deserialize, Serialize};
 
 use crate::models::domain::quiz_question::QuizQuestion;
@@ -45,7 +42,7 @@ impl Quiz {
         url: &str,
     ) -> Self {
         Quiz {
-            id: Uuid::new_v4().to_string(),
+            id: uuid::Uuid::new_v4().to_string(),
             name: name.to_string(),
             created_by_user_id: created_by_user_id.to_string(),
             title: None,

@@ -1,12 +1,11 @@
 use async_trait::async_trait;
 use mongodb::{bson::doc, options::IndexOptions, Collection, IndexModel};
-use uuid::Uuid;
 
 use crate::{db::Database, errors::AppResult, models::domain::Quiz};
 
 #[async_trait]
 pub trait QuizRepository: Send + Sync {
-    async fn find_by_id(&self, id: &Uuid) -> AppResult<Option<Quiz>>;
+    async fn find_by_id(&self, id: &str) -> AppResult<Option<Quiz>>;
     async fn create_quiz_draft(&self, quiz: Quiz) -> AppResult<Quiz>;
     async fn update(&self, quiz: Quiz) -> AppResult<Quiz>;
 }
@@ -43,10 +42,10 @@ impl MongoQuizRepository {
 
 #[async_trait]
 impl QuizRepository for MongoQuizRepository {
-    async fn find_by_id(&self, id: &Uuid) -> AppResult<Option<Quiz>> {
+    async fn find_by_id(&self, id: &str) -> AppResult<Option<Quiz>> {
         let quiz = self
             .collection
-            .find_one(doc! { "id": id.to_string() })
+            .find_one(doc! { "id": id })
             .await?;
         Ok(quiz)
     }
@@ -58,7 +57,7 @@ impl QuizRepository for MongoQuizRepository {
 
     async fn update(&self, quiz: Quiz) -> AppResult<Quiz> {
         self.collection
-            .replace_one(doc! { "id": quiz.id.to_string() }, &quiz)
+            .replace_one(doc! { "id": &quiz.id }, &quiz)
             .await?;
         Ok(quiz)
     }

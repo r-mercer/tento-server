@@ -1,7 +1,6 @@
 use async_graphql::SimpleObject;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use uuid::Uuid;
 
 use crate::models::domain::quiz_attempt::QuizAttempt;
 use crate::models::domain::quiz_question::QuizQuestionType;
@@ -30,9 +29,9 @@ impl From<User> for UserDto {
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct QuizDto {
-    pub id: Uuid,
+    pub id: String,
     pub name: String,
-    pub created_by_user_id: Uuid,
+    pub created_by_user_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -129,13 +128,13 @@ pub type PaginatedResponseUserDto = PaginatedUserResponse;
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct QuizQuestionOptionForTaking {
-    pub id: Uuid,
+    pub id: String,
     pub text: String,
 }
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct QuizQuestionForTaking {
-    pub id: Uuid,
+    pub id: String,
     pub title: String,
     pub description: String,
     pub question_type: QuizQuestionType,
@@ -149,7 +148,7 @@ pub struct QuizQuestionForTaking {
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct QuizForTaking {
-    pub id: Uuid,
+    pub id: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -214,8 +213,8 @@ impl QuizForTaking {
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct QuizAttemptResponse {
-    pub id: Uuid,
-    pub quiz_id: Uuid,
+    pub id: String,
+    pub quiz_id: String,
     pub points_earned: i16,
     pub total_possible: i16,
     pub passed: bool,
@@ -239,9 +238,9 @@ impl From<QuizAttempt> for QuizAttemptResponse {
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct QuestionAttemptDetail {
-    pub question_id: Uuid,
-    pub user_selected_option_ids: Vec<Uuid>,
-    pub correct_option_ids: Vec<Uuid>,
+    pub question_id: String,
+    pub user_selected_option_ids: Vec<String>,
+    pub correct_option_ids: Vec<String>,
     pub is_correct: bool,
     pub points_earned: i16,
     pub explanation: String,

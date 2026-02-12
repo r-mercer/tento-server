@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use actix_web::{get, post, web, HttpResponse};
-use uuid::Uuid;
 
 use crate::{
     app_state::AppState,
@@ -13,10 +12,10 @@ use crate::{
 #[get("/api/quizzes/{id}")]
 async fn get_quiz(
     state: web::Data<Arc<AppState>>,
-    id: web::Path<Uuid>,
+    id: web::Path<String>,
     _auth: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
-    let quiz = state.quiz_service.get_quiz(&id).await?;
+    let quiz = state.quiz_service.get_quiz(&id.into_inner()).await?;
     Ok(HttpResponse::Ok().json(quiz))
 }
 

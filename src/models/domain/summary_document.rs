@@ -1,11 +1,6 @@
 use async_graphql::SimpleObject;
-use uuid::Uuid;
-// use bson::{uuid, Uuid};
 use chrono::{DateTime, Utc};
-// use mongodb::bson::Uuid;
 use serde::{Deserialize, Serialize};
-
-// use crate::models::domain::quiz_question::QuizQuestion;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
 pub struct SummaryDocument {
@@ -20,9 +15,9 @@ pub struct SummaryDocument {
 }
 
 impl SummaryDocument {
-    pub fn new_summary_document(url: &str, quiz_id: Uuid, content: &str) -> Self {
+    pub fn new_summary_document(url: &str, quiz_id: &str, content: &str) -> Self {
         SummaryDocument {
-            id: Uuid::new_v4().to_string(),
+            id: uuid::Uuid::new_v4().to_string(),
             quiz_id: quiz_id.to_string(),
             content: content.to_string(),
             url: url.to_string(),

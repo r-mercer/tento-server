@@ -1,12 +1,11 @@
 use async_trait::async_trait;
 use mongodb::{bson::doc, options::IndexOptions, Collection, IndexModel};
-use uuid::Uuid;
 
 use crate::{db::Database, errors::AppResult, models::domain::summary_document::SummaryDocument};
 
 #[async_trait]
 pub trait SummaryDocumentRepository: Send + Sync {
-    async fn find_by_id(&self, id: &Uuid) -> AppResult<Option<SummaryDocument>>;
+    async fn find_by_id(&self, id: &str) -> AppResult<Option<SummaryDocument>>;
     async fn create(&self, document: SummaryDocument) -> AppResult<SummaryDocument>;
 }
 
@@ -42,10 +41,10 @@ impl MongoSummaryDocumentRepository {
 
 #[async_trait]
 impl SummaryDocumentRepository for MongoSummaryDocumentRepository {
-    async fn find_by_id(&self, id: &Uuid) -> AppResult<Option<SummaryDocument>> {
+    async fn find_by_id(&self, id: &str) -> AppResult<Option<SummaryDocument>> {
         let document = self
             .collection
-            .find_one(doc! { "id": id.to_string() })
+            .find_one(doc! { "id": id })
             .await?;
         Ok(document)
     }

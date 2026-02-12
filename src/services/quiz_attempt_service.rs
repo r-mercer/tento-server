@@ -4,7 +4,6 @@ use crate::models::domain::quiz_question::QuizQuestionType;
 use crate::models::domain::{Quiz, QuizQuestion};
 use crate::models::dto::request::QuestionAnswerInput;
 use chrono::Utc;
-use uuid::Uuid;
 
 pub struct QuizAttemptService;
 
@@ -24,36 +23,27 @@ impl QuizAttemptService {
             .ok_or(AppError::BadRequest("Quiz has no questions".to_string()))?;
 
         // Create a map of questions by ID for quick lookup
-        let question_map: std::collections::HashMap<Uuid, &QuizQuestion> =
-            questions.iter().map(|q| (q.id, q)).collect();
+        let question_map: std::collections::HashMap<&str, &QuizQuestion> =
+            questions.iter().map(|q| (q.id.as_str(), q)).collect();
 
         for submitted_answer in submitted_answers {
-            let question_id = Uuid::parse_str(&submitted_answer.question_id)
-                .map_err(|_| AppError::BadRequest("Invalid question ID format".to_string()))?;
-
-            let selected_ids: Result<Vec<Uuid>, _> = submitted_answer
-                .selected_option_ids
-                .iter()
-                .map(|id| Uuid::parse_str(id))
-                .collect();
-
-            let selected_ids = selected_ids
-                .map_err(|_| AppError::BadRequest("Invalid option ID format".to_string()))?;
+            let question_id = &submitted_answer.question_id;
 
             // Find question
             let question = question_map
-                .get(&question_id)
+                .get(question_id.as_str())
                 .ok_or(AppError::NotFound("Question not found".to_string()))?;
 
             // Grade this question
-            let (is_correct, points) = Self::grade_question(question, selected_ids.clone())?;
+            let (is_correct, points) =
+                Self::grade_question(question, submitted_answer.selected_option_ids.clone())?;
 
             total_points += points;
 
             question_results.push(QuizAttemptQuestion {
-                id: Uuid::new_v4(),
-                quiz_question_id: question_id,
-                selected_option_ids: selected_ids,
+                id: uuid::Uuid::new_v4().to_string(),
+                quiz_question_id: question_id.to_string(),
+                selected_option_ids: submitted_answer.selected_option_ids.clone(),
                 is_correct,
                 points_earned: points,
             });
@@ -65,13 +55,13 @@ impl QuizAttemptService {
     /// Grade an individual question based on type
     fn grade_question(
         question: &QuizQuestion,
-        selected_option_ids: Vec<Uuid>,
+        selected_option_ids: Vec<String>,
     ) -> AppResult<(bool, i16)> {
-        let correct_option_ids: Vec<Uuid> = question
+        let correct_option_ids: Vec<&str> = question
             .options
             .iter()
             .filter(|opt| opt.correct)
-            .map(|opt| opt.id)
+            .map(|opt| opt.id.as_str())
             .collect();
 
         let (is_correct, points) = match question.question_type {
@@ -93,10 +83,10 @@ impl QuizAttemptService {
 
                 let has_all_correct = correct_option_ids
                     .iter()
-                    .all(|id| selected_option_ids.contains(id));
+                    .all(|id| selected_option_ids.contains(&id.to_string()));
                 let has_no_incorrect = selected_option_ids
                     .iter()
-                    .all(|id| correct_option_ids.contains(id));
+                    .all(|id| correct_option_ids.contains(&id.as_str()));
                 let is_correct = has_all_correct && has_no_incorrect;
                 (is_correct, if is_correct { 1 } else { 0 })
             }
@@ -114,8 +104,8 @@ impl QuizAttemptService {
 
     /// Create a new quiz attempt from grading results
     pub fn create_attempt(
-        user_id: Uuid,
-        quiz_id: Uuid,
+        user_id: &str,
+        quiz_id: &str,
         points_earned: i16,
         total_possible: i16,
         attempt_number: i16,
@@ -125,9 +115,9 @@ impl QuizAttemptService {
         let passed = points_earned >= required_score;
 
         QuizAttempt {
-            id: Uuid::new_v4(),
-            user_id,
-            quiz_id,
+            id: uuid::Uuid::new_v4().to_string(),
+            user_id: user_id.to_string(),
+            quiz_id: quiz_id.to_string(),
             points_earned,
             total_possible,
             passed,

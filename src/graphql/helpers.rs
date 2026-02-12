@@ -1,10 +1,12 @@
 use crate::errors::{AppError, AppResult};
 use crate::models::domain::quiz::QuizStatus;
-use uuid::Uuid;
 
-/// Helper to parse UUID from GraphQL ID string
-pub fn parse_id(id: &str) -> AppResult<Uuid> {
-    Uuid::parse_str(id).map_err(|_| AppError::ValidationError("Invalid UUID format".to_string()))
+/// Helper to validate UUID format and return as String
+pub fn parse_id(id: &str) -> AppResult<String> {
+    // Validate it's a valid UUID format
+    uuid::Uuid::parse_str(id)
+        .map_err(|_| AppError::ValidationError("Invalid UUID format".to_string()))?;
+    Ok(id.to_string())
 }
 
 /// Check if quiz is available for taking

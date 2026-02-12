@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
@@ -28,7 +27,7 @@ impl QuizService {
         }
     }
 
-    pub async fn get_quiz(&self, id: &Uuid) -> AppResult<Quiz> {
+    pub async fn get_quiz(&self, id: &str) -> AppResult<Quiz> {
         let quiz = self
             .repository
             .find_by_id(id)
@@ -46,7 +45,7 @@ impl QuizService {
 
         let quiz = Quiz::new_draft(
             &request.name,
-            Uuid::nil(), // TODO: Get from authenticated user
+            "",  // TODO: Get from authenticated user context
             request.question_count,
             request.required_score,
             request.attempt_limit,
