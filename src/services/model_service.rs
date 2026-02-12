@@ -7,6 +7,7 @@ use async_openai::{
     Client,
 };
 use secrecy::ExposeSecret;
+use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::{
@@ -67,11 +68,11 @@ impl ModelService {
             .create_byot(json!({
                 "messages": [
                     {
-                        "role": "system_prompt",
+                        "role": "system",
                         "content": WEBSITE_SUMMARISER_PROMPT
                     },
                     {
-                        "role": "content_url",
+                        "role": "user",
                         "content": url_string
                     }
                 ],
@@ -91,22 +92,27 @@ impl ModelService {
         quiz: Quiz,
         summary_document: SummaryDocument,
     ) -> AppResult<String> {
+        let quiz_json = serde_json::to_string(&quiz)
+            .map_err(|e| AppError::InternalError(format!("Failed to serialize quiz: {}", e)))?;
+        let summary_json = serde_json::to_string(&summary_document).map_err(|e| {
+            AppError::InternalError(format!("Failed to serialize summary document: {}", e))
+        })?;
         let summ_client = Client::new();
         let response: Value = summ_client
             .chat()
             .create_byot(json!({
                 "messages": [
                     {
-                        "role": "quiz_generator",
+                        "role": "system",
                         "content": QUIZ_GENERATOR_PROMPT
                     },
                     {
-                        "role": "quiz_draft",
-                        "content": quiz
+                        "role": "user",
+                        "content": quiz_json
                     },
                     {
-                        "role": "summary_document",
-                        "content": summary_document
+                        "role": "user",
+                        "content": summary_json
                     }
                 ],
                 "model": "liquid/lfm2-1.2b",
@@ -116,8 +122,9 @@ impl ModelService {
 
         // if let Some(content) = response.output_text().to_string() {
         // Ok(response.output_text())
+        // response["choices"][0]["message"]["content"].as_str()
         println!("response: {}", response);
-        Ok(response.to_string())
+        Ok(response["choices"][0]["message"]["content"].to_string())
     }
 }
 

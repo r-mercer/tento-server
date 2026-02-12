@@ -91,7 +91,7 @@ Document access issues, incomplete sections, or content requiring clarification.
 3. Preservation of structure and context
 4. Clarity for downstream processing (lowest priority - human readability is not required)
 
-Begin processing with the provided URL immediately. Retrieve content, analyze for accuracy and completeness, and produce summarized output following these specifications.";
+You will be provided a URL shortly with no additional direction. Begin processing with the provided URL immediately. Retrieve content, analyze for accuracy and completeness, and produce summarized output following these specifications.";
 
 pub const QUIZ_GENERATOR_PROMPT: &str = "You are a quiz generation agent optimized for creating high-quality, accurate quizzes based on provided content and specifications.
 

@@ -186,6 +186,16 @@ impl StepHandler {
             .ok_or_else(|| "Invalid or missing quiz_id in job results".to_string())?
             .to_string();
 
+        let new_quiz_json = job
+            .results
+            .get("resonse")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "Invalid or missing response in job results".to_string())?
+            .to_string();
+
+        let new_quiz: Quiz = serde_json::from_str(&new_quiz_json)
+            .map_err(|e| format!("Failed to parse quiz from job results: {}", e))?;
+
         let mut quiz = app_state
             .quiz_service
             .get_quiz(&quiz_id)
@@ -194,6 +204,9 @@ impl StepHandler {
 
         quiz.status = crate::models::domain::quiz::QuizStatus::Ready;
         quiz.modified_at = Some(chrono::Utc::now());
+        quiz.questions = new_quiz.questions;
+        quiz.title = new_quiz.title;
+        quiz.description = new_quiz.description;
 
         app_state
             .quiz_service
