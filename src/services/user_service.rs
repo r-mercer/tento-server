@@ -8,7 +8,7 @@ use crate::{
         domain::User,
         dto::{
             request::{CreateUserRequest, UpdateUserRequest},
-            response::{CreateUserResponse, DeleteUserResponse, UpdateUserResponse, UserDto, PaginatedResponseUserDto, PaginationMetadata},
+            response::{CreateUserResponse, DeleteUserResponse, DeleteResponseData, UpdateUserResponse, UserDto, PaginatedResponseUserDto, PaginationMetadata},
         },
     },
     repositories::UserRepository,
@@ -113,9 +113,12 @@ impl UserService {
     pub async fn delete_user(&self, username: &str) -> AppResult<DeleteUserResponse> {
         self.repository.delete(username).await?;
 
-        Ok(DeleteUserResponse {
-            message: format!("User '{}' deleted successfully", username),
-        })
+        Ok(DeleteUserResponse::new(
+            DeleteResponseData {
+                message: format!("User '{}' deleted successfully", username),
+            },
+            format!("User '{}' deleted successfully", username),
+        ))
     }
 
     /// Upsert user from OAuth flow - creates or updates user based on GitHub ID

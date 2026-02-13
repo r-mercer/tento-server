@@ -149,12 +149,6 @@ impl ModelService {
         _quiz: Quiz,
         summary_document: SummaryDocument,
     ) -> AppResult<Quiz> {
-        // let quiz_json = serde_json::to_string(&quiz)
-        //     .map_err(|e| AppError::InternalError(format!("Failed to serialize quiz: {}", e)))?;
-        // let summary_json = serde_json::to_string(&summary_document).map_err(|e| {
-        //     AppError::InternalError(format!("Failed to serialize summary document: {}", e))
-        // })?;
-
         match Self::structured_output::<Quiz>(vec![
             ChatCompletionRequestSystemMessage::from(QUIZ_GENERATOR_PROMPT).into(),
             ChatCompletionRequestUserMessage::from(summary_document.content).into(),
@@ -170,8 +164,6 @@ impl ModelService {
                 e
             ))),
         }
-
-        // Ok(response)
     }
 
     pub async fn structured_output<T: serde::Serialize + DeserializeOwned + JsonSchema>(
@@ -192,6 +184,9 @@ impl ModelService {
         if let Some(obj) = schema_value.as_object_mut() {
             obj.remove("$defs");
         }
+        
+        // Log the schema for debugging
+        eprintln!("Schema being sent to LLM: {}", serde_json::to_string_pretty(&schema_value)?);
         
         let response_format = ResponseFormat::JsonSchema {
             json_schema: ResponseFormatJsonSchema {
@@ -238,6 +233,22 @@ impl ModelService {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+                
+                // Fix union types: ["string", "null"] -> "string" (outlines doesn't support unions)
+                if let Some(type_val) = obj.get_mut("type") {
+                    if let Value::Array(arr) = type_val {
+                        // Keep only non-null types, remove "null" from unions
+                        if let Some(non_null) = arr.iter().find(|v| {
+                            if let Value::String(s) = v {
+                                s != "null"
+                            } else {
+                                false
+                            }
+                        }) {
+                            *type_val = non_null.clone();
                         }
                     }
                 }

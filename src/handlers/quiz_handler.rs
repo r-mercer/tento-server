@@ -7,6 +7,7 @@ use crate::{
     auth::AuthenticatedUser,
     errors::AppError,
     models::dto::request::CreateQuizDraftRequest,
+    models::dto::response::{ApiResponse, QuizDto},
 };
 
 #[get("/api/quizzes/{id}")]
@@ -16,7 +17,8 @@ async fn get_quiz(
     _auth: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
     let quiz = state.quiz_service.get_quiz(&id.into_inner()).await?;
-    Ok(HttpResponse::Ok().json(quiz))
+    let response = ApiResponse::new(QuizDto::from(quiz), "Quiz retrieved successfully");
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[post("/api/quizzes/drafts")]

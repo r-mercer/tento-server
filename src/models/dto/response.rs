@@ -1,10 +1,15 @@
 use async_graphql::SimpleObject;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use crate::models::domain::quiz_attempt::QuizAttempt;
 use crate::models::domain::quiz_question::QuizQuestionType;
 use crate::models::domain::{quiz::QuizStatus, Quiz, QuizQuestion, User};
+
+// ============================================================================
+// User DTOs
+// ============================================================================
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct UserDto {
@@ -26,6 +31,10 @@ impl From<User> for UserDto {
         }
     }
 }
+
+// ============================================================================
+// Quiz DTOs - Standard Response Format
+// ============================================================================
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct QuizDto {
@@ -72,33 +81,130 @@ impl From<Quiz> for QuizDto {
     }
 }
 
-#[derive(Debug, Serialize, SimpleObject)]
-pub struct ApiResponse<T: async_graphql::OutputType> {
-    pub data: T,
-    pub message: String,
+// ============================================================================
+// Quiz DTOs - LLM Optimized (String-based Enums)
+// ============================================================================
+
+/// LLM-optimized Quiz DTO with string-based enums for better LLM serialization
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct QuizDtoLLM {
+    pub id: String,
+    pub name: String,
+    pub created_by_user_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub question_count: i16,
+    pub required_score: i16,
+    pub attempt_limit: i16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub topic: Option<String>,
+    /// Status as string for LLM processing
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub questions: Option<Vec<QuizQuestionDtoLLM>>,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modified_at: Option<String>,
 }
 
-#[derive(Debug, Serialize, SimpleObject)]
-pub struct CreateQuizDraftResponseData {
-    pub quiz: QuizDto,
-    pub job_id: String,
+impl QuizDtoLLM {
+    /// Convert from standard Quiz DTO to LLM-optimized format
+    pub fn from_quiz_dto(quiz: QuizDto) -> Self {
+        QuizDtoLLM {
+            id: quiz.id,
+            name: quiz.name,
+            created_by_user_id: quiz.created_by_user_id,
+            title: quiz.title,
+            description: quiz.description,
+            question_count: quiz.question_count,
+            required_score: quiz.required_score,
+            attempt_limit: quiz.attempt_limit,
+            topic: quiz.topic,
+            status: format!("{:?}", quiz.status),
+            questions: quiz.questions.map(|qs| {
+                qs.into_iter()
+                    .map(QuizQuestionDtoLLM::from_quiz_question)
+                    .collect()
+            }),
+            url: quiz.url,
+            created_at: quiz.created_at.map(|dt| dt.to_rfc3339()),
+            modified_at: quiz.modified_at.map(|dt| dt.to_rfc3339()),
+        }
+    }
+
+    /// Convert from domain Quiz directly
+    pub fn from_quiz(quiz: Quiz) -> Self {
+        Self::from_quiz_dto(quiz.into())
+    }
 }
 
-pub type CreateUserResponse = ApiResponse<UserDto>;
-pub type UpdateUserResponse = ApiResponse<UserDto>;
-pub type CreateQuizDraftResponse = ApiResponse<CreateQuizDraftResponseData>;
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct QuizQuestionDtoLLM {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    /// Question type as string for LLM processing
+    pub question_type: String,
+    pub options: Vec<QuizQuestionOptionDtoLLM>,
+    pub option_count: i16,
+    pub order: i16,
+    pub topic: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modified_at: Option<String>,
+}
+
+impl QuizQuestionDtoLLM {
+    pub fn from_quiz_question(question: QuizQuestion) -> Self {
+        QuizQuestionDtoLLM {
+            id: question.id,
+            title: question.title,
+            description: question.description,
+            question_type: format!("{:?}", question.question_type),
+            options: question
+                .options
+                .into_iter()
+                .map(QuizQuestionOptionDtoLLM::from)
+                .collect(),
+            option_count: question.option_count,
+            order: question.order,
+            topic: question.topic,
+            created_at: question.created_at.map(|dt| dt.to_rfc3339()),
+            modified_at: question.modified_at.map(|dt| dt.to_rfc3339()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct QuizQuestionOptionDtoLLM {
+    pub id: String,
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub correct: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explanation: Option<String>,
+}
+
+impl From<crate::models::domain::quiz_question::QuizQuestionOption> for QuizQuestionOptionDtoLLM {
+    fn from(option: crate::models::domain::quiz_question::QuizQuestionOption) -> Self {
+        QuizQuestionOptionDtoLLM {
+            id: option.id,
+            text: option.text,
+            correct: Some(option.correct),
+            explanation: Some(option.explanation),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct ChatCompletionResponse {
     pub content: String,
     pub model: String,
-}
-
-pub type ChatCompletionApiResponse = ApiResponse<ChatCompletionResponse>;
-
-#[derive(Debug, Serialize, SimpleObject)]
-pub struct DeleteUserResponse {
-    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
@@ -107,20 +213,6 @@ pub struct PaginationMetadata {
     pub limit: i64,
     pub total: i64,
 }
-
-#[derive(Debug, Serialize, SimpleObject)]
-pub struct PaginatedResponse<T: async_graphql::OutputType> {
-    pub data: Vec<T>,
-    pub pagination: PaginationMetadata,
-}
-
-#[derive(Debug, Serialize, SimpleObject)]
-pub struct PaginatedUserResponse {
-    pub data: Vec<UserDto>,
-    pub pagination: PaginationMetadata,
-}
-
-pub type PaginatedResponseUserDto = PaginatedUserResponse;
 
 // ============================================================================
 // Quiz DTOs for Answer Visibility Control
@@ -260,6 +352,83 @@ pub struct PaginatedQuizAttemptResponse {
 }
 
 pub type PaginatedResponseQuizAttempt = PaginatedQuizAttemptResponse;
+
+// ============================================================================
+// Standard API Response Wrappers
+// ============================================================================
+
+/// Generic API response wrapper for single resource
+#[derive(Debug, Serialize, SimpleObject)]
+pub struct ApiResponse<T: async_graphql::OutputType> {
+    pub data: T,
+    pub message: String,
+}
+
+impl<T: async_graphql::OutputType> ApiResponse<T> {
+    pub fn new(data: T, message: impl Into<String>) -> Self {
+        Self {
+            data,
+            message: message.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, SimpleObject)]
+pub struct CreateQuizDraftResponseData {
+    pub quiz: QuizDto,
+    pub job_id: String,
+}
+
+#[derive(Debug, Serialize, SimpleObject)]
+pub struct DeleteResponseData {
+    pub message: String,
+}
+
+pub type ChatCompletionApiResponse = ApiResponse<ChatCompletionResponse>;
+
+/// Generic API response wrapper for paginated resources
+#[derive(Debug, Serialize, SimpleObject)]
+pub struct PaginatedResponse<T: async_graphql::OutputType> {
+    pub data: Vec<T>,
+    pub pagination: PaginationMetadata,
+}
+
+impl<T: async_graphql::OutputType> PaginatedResponse<T> {
+    pub fn new(data: Vec<T>, pagination: PaginationMetadata) -> Self {
+        Self { data, pagination }
+    }
+}
+
+// ============================================================================
+// Response Type Aliases
+// ============================================================================
+
+pub type CreateUserResponse = ApiResponse<UserDto>;
+pub type UpdateUserResponse = ApiResponse<UserDto>;
+pub type CreateQuizDraftResponse = ApiResponse<CreateQuizDraftResponseData>;
+pub type DeleteUserResponse = ApiResponse<DeleteResponseData>;
+
+/// Response for all paginated user queries
+#[derive(Debug, Serialize, SimpleObject)]
+pub struct PaginatedUserResponse {
+    pub data: Vec<UserDto>,
+    pub pagination: PaginationMetadata,
+}
+
+pub type PaginatedResponseUserDto = PaginatedUserResponse;
+
+/// Response for all paginated quiz queries
+#[derive(Debug, Serialize, SimpleObject)]
+pub struct PaginatedQuizResponse {
+    pub data: Vec<QuizDto>,
+    pub pagination: PaginationMetadata,
+}
+
+pub type PaginatedResponseQuizDto = PaginatedQuizResponse;
+
+// ============================================================================
+// Tests
+// ============================================================================
 
 #[cfg(test)]
 mod tests {
