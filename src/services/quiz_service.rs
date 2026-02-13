@@ -11,7 +11,10 @@ use crate::{
         },
     },
     repositories::QuizRepository,
-    services::{agent_orchestrator_service::AgentOrchestrator, orchestrator_steps::create_quiz_generation_steps},
+    services::{
+        agent_orchestrator_service::AgentOrchestrator,
+        orchestrator_steps::create_quiz_generation_steps,
+    },
 };
 
 pub struct QuizService {
@@ -45,7 +48,7 @@ impl QuizService {
 
         let quiz = Quiz::new_draft(
             &request.name,
-            "",  // TODO: Get from authenticated user context
+            "", // TODO: Get from authenticated user context
             request.question_count,
             request.required_score,
             request.attempt_limit,
@@ -55,6 +58,7 @@ impl QuizService {
         let created_quiz = self.repository.create_quiz_draft(quiz).await?;
 
         let steps = create_quiz_generation_steps();
+
         let job_id = self
             .orchestrator
             .create_job(steps)
@@ -63,7 +67,11 @@ impl QuizService {
 
         // Store quiz metadata in job
         self.orchestrator
-            .set_job_metadata(&job_id, "quiz_id", serde_json::json!(created_quiz.id.to_string()))
+            .set_job_metadata(
+                &job_id,
+                "quiz_id",
+                serde_json::json!(created_quiz.id.to_string()),
+            )
             .await
             .map_err(|e| AppError::InternalError(format!("Failed to set job metadata: {}", e)))?;
 

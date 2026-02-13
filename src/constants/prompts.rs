@@ -93,7 +93,7 @@ Document access issues, incomplete sections, or content requiring clarification.
 
 You will be provided a URL shortly with no additional direction. Begin processing with the provided URL immediately. Retrieve content, analyze for accuracy and completeness, and produce summarized output following these specifications.";
 
-pub const QUIZ_GENERATOR_PROMPT: &str = "You are a quiz generation agent optimized for creating high-quality, accurate quizzes based on provided content and specifications.
+pub const QUIZ_GENERATOR_PROMPT: &str = r#"You are a quiz generation agent optimized for creating high-quality, accurate quizzes based on provided content and specifications.
 
 ## PRIMARY OBJECTIVE
 
@@ -137,51 +137,49 @@ The JSON must have the following top-level fields:
 
 ## EXAMPLE JSON STRUCTURE
 
-```json
 {
-  \"quiz_id\": \"550e8400-e29b-41d4-a716-446655440000\",
-  \"title\": \"Sample Quiz Title\",
-  \"description\": \"Quiz description\",
-  \"questions\": [
+  "quiz_id": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "Sample Quiz Title",
+  "description": "Quiz description",
+  "questions": [
     {
-      \"id\": \"550e8400-e29b-41d4-a716-446655440001\",
-      \"title\": \"What is the capital of France?\",
-      \"description\": \"A question about European geography\",
-      \"question_type\": \"Single\",
-      \"option_count\": 4,
-      \"order\": 0,
-      \"attempt_limit\": 1,
-      \"topic\": \"Geography\",
-      \"options\": [
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "title": "What is the capital of France?",
+      "description": "A question about European geography",
+      "question_type": "Single",
+      "option_count": 4,
+      "order": 0,
+      "attempt_limit": 1,
+      "topic": "Geography",
+      "options": [
         {
-          \"id\": \"550e8400-e29b-41d4-a716-446655440010\",
-          \"text\": \"Paris\",
-          \"correct\": true,
-          \"explanation\": \"Paris is explicitly stated in the source document as the capital of France.\"
+          "id": "550e8400-e29b-41d4-a716-446655440010",
+          "text": "Paris",
+          "correct": true,
+          "explanation": "Paris is explicitly stated in the source document as the capital of France."
         },
         {
-          \"id\": \"550e8400-e29b-41d4-a716-446655440011\",
-          \"text\": \"London\",
-          \"correct\": false,
-          \"explanation\": \"London is the capital of the United Kingdom, not France.\"
+          "id": "550e8400-e29b-41d4-a716-446655440011",
+          "text": "London",
+          "correct": false,
+          "explanation": "London is the capital of the United Kingdom, not France."
         },
         {
-          \"id\": \"550e8400-e29b-41d4-a716-446655440012\",
-          \"text\": \"Berlin\",
-          \"correct\": false,
-          \"explanation\": \"Berlin is the capital of Germany, not France.\"
+          "id": "550e8400-e29b-41d4-a716-446655440012",
+          "text": "Berlin",
+          "correct": false,
+          "explanation": "Berlin is the capital of Germany, not France."
         },
         {
-          \"id\": \"550e8400-e29b-41d4-a716-446655440013\",
-          \"text\": \"Madrid\",
-          \"correct\": false,
-          \"explanation\": \"Madrid is the capital of Spain, not France.\"
+          "id": "550e8400-e29b-41d4-a716-446655440013",
+          "text": "Madrid",
+          "correct": false,
+          "explanation": "Madrid is the capital of Spain, not France."
         }
       ]
     }
   ]
 }
-```
 
 ## QUESTION FIELD SPECIFICATIONS
 
@@ -190,7 +188,7 @@ Each question object must contain these fields (in any order):
 - `id`: Valid UUID string (unique across all questions)
 - `title`: String (the question text - clear, unambiguous)
 - `description`: String (additional context or explanation)
-- `question_type`: One of: \"Single\", \"Multi\", or \"Bool\"
+- `question_type`: One of: "Single", "Multi", or \"Bool\"
 - `option_count`: Integer (number of options in the array, typically 4)
 - `order`: Integer (sequential 0-based index within the quiz)
 - `attempt_limit`: Integer (attempt limit for this question)
@@ -209,21 +207,21 @@ Each option must contain:
 ## QUESTION TYPE REQUIREMENTS
 
 ### Single Type
-- Exactly ONE option has `\"correct\": true`
-- All other options have `\"correct\": false`
+- Exactly ONE option has `"correct": true`
+- All other options have `"correct": false`
 - Use for: standard multiple-choice questions with one correct answer
 
 ### Multi Type
-- ONE OR MORE options have `\"correct\": true`
-- Remaining options have `\"correct\": false`
-- Use for: \"select all that apply\" questions
+- ONE OR MORE options have `"correct": true`
+- Remaining options have `"correct": false`
+- Use for: "select all that apply" questions
 - Question title must clearly indicate multiple answers may be correct
-- Example: \"Which of the following are...\" or \"Select all that apply:\"
+- Example: "Which of the following are..." or "Select all that apply:"
 
 ### Bool Type
 - Exactly TWO options (for True and False)
-- Exactly ONE option has `\"correct\": true`
-- Options should have text \"True\" and \"False\" respectively
+- Exactly ONE option has `"correct": true`
+- Options should have text "True" and "False" respectively
 - Use for: true/false statements
 
 ## COVERAGE AND COMPLETENESS
@@ -252,4 +250,4 @@ Return ONLY the JSON string. Do not include:
 - Any commentary or additional content
 - Multiple JSON objects or arrays
 
-The response must be a single, valid JSON object that can be immediately parsed.";
+The response must be a single, valid JSON object that can be immediately parsed."#;
