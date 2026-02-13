@@ -1,8 +1,10 @@
 use async_graphql::{Enum, SimpleObject};
 use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct QuizQuestion {
     pub id: String,
     pub title: String,
@@ -19,7 +21,7 @@ pub struct QuizQuestion {
     pub modified_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject, JsonSchema)]
 pub struct QuizQuestionOption {
     pub id: String,
     pub text: String,
@@ -27,7 +29,7 @@ pub struct QuizQuestionOption {
     pub explanation: String, // explanation for why this option is correct or incorrect
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Enum, Copy)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Enum, Copy, JsonSchema)]
 pub enum QuizQuestionType {
     Single, // Only one correct option
     Multi,  // Multiple correct options

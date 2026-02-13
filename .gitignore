@@ -16,3 +16,5 @@ target
 # Environment files with secrets
 .env*
 !.env.example
+
+.vscode/

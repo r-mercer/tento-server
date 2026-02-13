@@ -1,12 +1,17 @@
+use std::error::Error;
+
 use async_openai::{
     config::OpenAIConfig,
     types::chat::{
-        ChatCompletionRequestMessage, ChatCompletionRequestUserMessageArgs,
-        CreateChatCompletionRequestArgs,
+        ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
+        ChatCompletionRequestUserMessage, ChatCompletionRequestUserMessageArgs,
+        CreateChatCompletionRequestArgs, ResponseFormat, ResponseFormatJsonSchema,
     },
     Client,
 };
+use schemars::{schema_for, JsonSchema};
 use secrecy::ExposeSecret;
+use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 
 use crate::{
@@ -137,6 +142,69 @@ impl ModelService {
 
         Ok(content)
         // Ok(response["choices"][0]["message"]["content"].to_string())
+    }
+
+    pub async fn structured_quiz_generator(
+        &self,
+        quiz: Quiz,
+        summary_document: SummaryDocument,
+    ) -> AppResult<Quiz> {
+        // let quiz_json = serde_json::to_string(&quiz)
+        //     .map_err(|e| AppError::InternalError(format!("Failed to serialize quiz: {}", e)))?;
+        // let summary_json = serde_json::to_string(&summary_document).map_err(|e| {
+        //     AppError::InternalError(format!("Failed to serialize summary document: {}", e))
+        // })?;
+
+        match Self::structured_output::<Quiz>(vec![
+            ChatCompletionRequestSystemMessage::from(QUIZ_GENERATOR_PROMPT).into(),
+            ChatCompletionRequestUserMessage::from(summary_document.content).into(),
+        ])
+        .await
+        {
+            Ok(Some(generated_quiz)) => Ok(generated_quiz),
+            Ok(None) => Err(AppError::InternalError(
+                "LLM did not return a valid quiz".to_string(),
+            )),
+            Err(e) => Err(AppError::InternalError(format!(
+                "Failed to generate structured quiz: {}",
+                e
+            ))),
+        }
+
+        // Ok(response)
+    }
+
+    pub async fn structured_output<T: serde::Serialize + DeserializeOwned + JsonSchema>(
+        messages: Vec<ChatCompletionRequestMessage>,
+    ) -> Result<Option<T>, Box<dyn Error>> {
+        let schema = schema_for!(T);
+        let schema_value = serde_json::to_value(&schema)?;
+        let response_format = ResponseFormat::JsonSchema {
+            json_schema: ResponseFormatJsonSchema {
+                description: None,
+                name: "math_reasoning".into(),
+                schema: Some(schema_value),
+                strict: Some(true),
+            },
+        };
+
+        let request = CreateChatCompletionRequestArgs::default()
+            .max_tokens(512u32)
+            .model("liquid/lfm2-1.2b")
+            .messages(messages)
+            .response_format(response_format)
+            .build()?;
+
+        let client = Client::new();
+        let response = client.chat().create(request).await?;
+
+        for choice in response.choices {
+            if let Some(content) = choice.message.content {
+                return Ok(Some(serde_json::from_str::<T>(&content)?));
+            }
+        }
+
+        Ok(None)
     }
 }
 

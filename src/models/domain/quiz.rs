@@ -1,10 +1,12 @@
 use async_graphql::{Enum, SimpleObject};
 use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::models::domain::quiz_question::QuizQuestion;
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, SimpleObject, JsonSchema)]
+// #[serde(deny_unknown_fields)]
 pub struct Quiz {
     pub id: String,                  // Either set by db, client or API
     pub name: String,                // Friendly name, set on create
@@ -24,7 +26,8 @@ pub struct Quiz {
     pub modified_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Enum, Copy)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Enum, Copy, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub enum QuizStatus {
     Draft,
     Pending,

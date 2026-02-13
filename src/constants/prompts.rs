@@ -121,7 +121,7 @@ You will receive:
    - `required_score`: Passing score threshold (reference only)
    - `attempt_limit`: Maximum attempts allowed (reference only)
    - `quiz_id`: Unique identifier for this quiz
-   - Other metadata (name, url, topic, etc.)
+   - Other metadata (name, url, etc.)
 
 2. **Summary Document**: The authoritative source material from which ALL questions must be derived.
 
@@ -133,53 +133,8 @@ The JSON must have the following top-level fields:
 - `quiz_id`: string (matches input quiz_id)
 - `title`: string (optional: derived from quiz metadata or summary)
 - `description`: string (optional: derived from summary document)
+- `topic`: string (optional: derived from summary document)
 - `questions`: array (exactly `question_count` items)
-
-## EXAMPLE JSON STRUCTURE
-
-{
-  "quiz_id": "550e8400-e29b-41d4-a716-446655440000",
-  "title": "Sample Quiz Title",
-  "description": "Quiz description",
-  "questions": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440001",
-      "title": "What is the capital of France?",
-      "description": "A question about European geography",
-      "question_type": "Single",
-      "option_count": 4,
-      "order": 0,
-      "attempt_limit": 1,
-      "topic": "Geography",
-      "options": [
-        {
-          "id": "550e8400-e29b-41d4-a716-446655440010",
-          "text": "Paris",
-          "correct": true,
-          "explanation": "Paris is explicitly stated in the source document as the capital of France."
-        },
-        {
-          "id": "550e8400-e29b-41d4-a716-446655440011",
-          "text": "London",
-          "correct": false,
-          "explanation": "London is the capital of the United Kingdom, not France."
-        },
-        {
-          "id": "550e8400-e29b-41d4-a716-446655440012",
-          "text": "Berlin",
-          "correct": false,
-          "explanation": "Berlin is the capital of Germany, not France."
-        },
-        {
-          "id": "550e8400-e29b-41d4-a716-446655440013",
-          "text": "Madrid",
-          "correct": false,
-          "explanation": "Madrid is the capital of Spain, not France."
-        }
-      ]
-    }
-  ]
-}
 
 ## QUESTION FIELD SPECIFICATIONS
 
@@ -188,11 +143,10 @@ Each question object must contain these fields (in any order):
 - `id`: Valid UUID string (unique across all questions)
 - `title`: String (the question text - clear, unambiguous)
 - `description`: String (additional context or explanation)
-- `question_type`: One of: "Single", "Multi", or \"Bool\"
+- `question_type`: One of: "Single", "Multi", or "Bool"
 - `option_count`: Integer (number of options in the array, typically 4)
 - `order`: Integer (sequential 0-based index within the quiz)
 - `attempt_limit`: Integer (attempt limit for this question)
-- `topic`: String (topic or subtopic this question addresses)
 - `options`: Array of option objects
 
 ## OPTION OBJECT SPECIFICATIONS

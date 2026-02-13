@@ -155,7 +155,7 @@ impl StepHandler {
 
         match app_state
             .model_service
-            .quiz_generator(quiz, summary_document)
+            .structured_quiz_generator(quiz, summary_document)
             .await
         {
             Ok(response) => {
