@@ -19,6 +19,7 @@ use crate::{
     constants::{prompts::QUIZ_GENERATOR_PROMPT, WEBSITE_SUMMARISER_PROMPT},
     errors::{AppError, AppResult},
     models::domain::{summary_document::SummaryDocument, Quiz},
+    models::dto::response::QuizDtoLLM,
 };
 
 pub struct ModelService {
@@ -149,13 +150,21 @@ impl ModelService {
         _quiz: Quiz,
         summary_document: SummaryDocument,
     ) -> AppResult<Quiz> {
-        match Self::structured_output::<Quiz>(vec![
+        // Use QuizDtoLLM for LLM generation (string-based enums)
+        match Self::structured_output::<QuizDtoLLM>(vec![
             ChatCompletionRequestSystemMessage::from(QUIZ_GENERATOR_PROMPT).into(),
             ChatCompletionRequestUserMessage::from(summary_document.content).into(),
         ])
         .await
         {
-            Ok(Some(generated_quiz)) => Ok(generated_quiz),
+            Ok(Some(quiz_dto_llm)) => {
+                // Convert QuizDtoLLM back to domain Quiz
+                quiz_dto_llm.to_quiz()
+                    .map_err(|e| AppError::InternalError(format!(
+                        "Failed to convert quiz DTO: {}",
+                        e
+                    )))
+            }
             Ok(None) => Err(AppError::InternalError(
                 "LLM did not return a valid quiz".to_string(),
             )),
