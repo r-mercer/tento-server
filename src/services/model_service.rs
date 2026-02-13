@@ -7,7 +7,6 @@ use async_openai::{
     Client,
 };
 use secrecy::ExposeSecret;
-use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::{
@@ -81,10 +80,13 @@ impl ModelService {
             }))
             .await?;
 
+        let content = response["choices"][0]["message"]["content"].to_string();
         // if let Some(content) = response.output_text().to_string() {
         // Ok(response.output_text())
-        println!("response: {}", response);
-        Ok(response.to_string())
+        println!("content: {}", content);
+        // Ok(response.to_string())
+
+        Ok(content)
     }
 
     pub async fn quiz_generator(
@@ -123,8 +125,18 @@ impl ModelService {
         // if let Some(content) = response.output_text().to_string() {
         // Ok(response.output_text())
         // response["choices"][0]["message"]["content"].as_str()
-        println!("response: {}", response);
-        Ok(response["choices"][0]["message"]["content"].to_string())
+        // let content = response["choices"][0]["message"]["content"]
+
+        // println!("response-content: {}", content);
+
+        let content = response["choices"][0]["message"]["content"].to_string();
+        // if let Some(content) = response.output_text().to_string() {
+        // Ok(response.output_text())
+        println!("content: {}", content);
+        // Ok(response.to_string())
+
+        Ok(content)
+        // Ok(response["choices"][0]["message"]["content"].to_string())
     }
 }
 

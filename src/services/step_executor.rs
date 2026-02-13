@@ -186,14 +186,16 @@ impl StepHandler {
             .ok_or_else(|| "Invalid or missing quiz_id in job results".to_string())?
             .to_string();
 
-        let new_quiz_json = job
-            .results
-            .get("resonse")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| "Invalid or missing response in job results".to_string())?
-            .to_string();
+        // let new_quiz_json = job.results.get("resonse");
+        let mut response = String::new();
+        if let Some(resp) = job.results.get("response").to_owned() {
+            // println!("response: {}", resp.to_string());
+            response = resp.to_string();
+        }
 
-        let new_quiz: Quiz = serde_json::from_str(&new_quiz_json)
+        // let newval = job.results.get("response").to_owned();
+
+        let new_quiz: Quiz = serde_json::from_str(&response)
             .map_err(|e| format!("Failed to parse quiz from job results: {}", e))?;
 
         let mut quiz = app_state

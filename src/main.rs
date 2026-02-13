@@ -49,10 +49,16 @@ async fn main() -> std::io::Result<()> {
         config.validate_for_production();
         log::info!("Configuration validated successfully");
     }
-    
+
     // Log OAuth configuration (without exposing secrets)
-    log::info!("GitHub OAuth configured with Client ID: {}", config.gh_client_id);
-    log::info!("GitHub OAuth Client Secret is {} characters", config.gh_client_secret.expose_secret().len());
+    log::info!(
+        "GitHub OAuth configured with Client ID: {}",
+        config.gh_client_id
+    );
+    log::info!(
+        "GitHub OAuth Client Secret is {} characters",
+        config.gh_client_secret.expose_secret().len()
+    );
 
     let app_state = AppState::new(config.clone())
         .await
@@ -61,8 +67,12 @@ async fn main() -> std::io::Result<()> {
     let app_state = std::sync::Arc::new(app_state);
 
     // Set app state on orchestrator and start worker
-    app_state.agent_orchestrator.set_app_state(app_state.clone()).await;
-    app_state.agent_orchestrator
+    app_state
+        .agent_orchestrator
+        .set_app_state(app_state.clone())
+        .await;
+    app_state
+        .agent_orchestrator
         .start_worker()
         .await
         .expect("Failed to start background worker");

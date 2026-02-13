@@ -196,8 +196,6 @@ impl AgentOrchestrator {
         self.repository.delete_job(job_id).await
     }
 
-    /// Start background worker to process running jobs
-    /// This should be called once at application startup
     pub async fn start_worker(&self) -> Result<(), String> {
         log::info!("Starting background worker");
 
@@ -206,10 +204,8 @@ impl AgentOrchestrator {
 
         let worker_handle = tokio::spawn(async move {
             loop {
-                // Poll for running jobs every 5 seconds
                 if let Ok(jobs) = repository.list_jobs(Some(JobStatus::Running)).await {
                     for mut job in jobs {
-                        // Get app state for this execution
                         let app_state_read = app_state.read().await;
                         let Some(app_state_ref) = app_state_read.as_ref() else {
                             log::warn!("App state not set for orchestrator");
@@ -217,16 +213,13 @@ impl AgentOrchestrator {
                             continue;
                         };
 
-                        // Clone to avoid holding the lock during execution
                         let app_state_clone: Arc<AppState> = app_state_ref.clone();
                         drop(app_state_read);
 
-                        // Get current step
                         if let Some(current_step) = job.get_current_step() {
                             let step_name = current_step.name.clone();
                             let step_id = current_step.id.clone();
 
-                            // Parse step name to type
                             if let Some(step_type) = JobStepType::from_step_name(&step_name) {
                                 log::info!(
                                     "Processing job {} - step {} ({}, attempt {}/{})",
@@ -248,8 +241,9 @@ impl AgentOrchestrator {
                                 {
                                     Ok(result) => {
                                         // Step succeeded - complete it
-                                        if let Err(e) =
-                                            repository.complete_step(&job.job_id, Some(result)).await
+                                        if let Err(e) = repository
+                                            .complete_step(&job.job_id, Some(result))
+                                            .await
                                         {
                                             log::error!("Failed to complete step: {}", e);
                                         } else {
@@ -268,8 +262,8 @@ impl AgentOrchestrator {
                                             error
                                         );
 
-                                        // fail_step will handle retry logic internally
-                                        if let Err(e) = repository.fail_step(&job.job_id, error).await
+                                        if let Err(e) =
+                                            repository.fail_step(&job.job_id, error).await
                                         {
                                             log::error!("Failed to mark step as failed: {}", e);
                                         }
@@ -281,8 +275,11 @@ impl AgentOrchestrator {
                                 let _ = repository.fail_step(&job.job_id, error).await;
                             }
                         } else {
-                            log::info!("Job {} has no more steps - marking as completed", job.job_id);
-                            // All steps done - mark job as completed
+                            log::info!(
+                                "Job {} has no more steps - marking as completed",
+                                job.job_id
+                            );
+
                             job.status = JobStatus::Completed;
                             job.completed_at = Some(Utc::now());
                             if let Err(e) = repository.save(&job).await {
