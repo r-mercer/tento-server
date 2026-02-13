@@ -146,7 +146,7 @@ impl ModelService {
 
     pub async fn structured_quiz_generator(
         &self,
-        quiz: Quiz,
+        _quiz: Quiz,
         summary_document: SummaryDocument,
     ) -> AppResult<Quiz> {
         // let quiz_json = serde_json::to_string(&quiz)
@@ -178,7 +178,21 @@ impl ModelService {
         messages: Vec<ChatCompletionRequestMessage>,
     ) -> Result<Option<T>, Box<dyn Error>> {
         let schema = schema_for!(T);
-        let schema_value = serde_json::to_value(&schema)?;
+        let mut schema_value = serde_json::to_value(&schema)?;
+        
+        // Inline all $defs to avoid $ref issues with LM Studio's outlines processor
+        let defs = if let Some(obj) = schema_value.get("$defs") {
+            obj.clone()
+        } else {
+            Value::Object(Default::default())
+        };
+        
+        Self::inline_schema_refs(&mut schema_value, &defs);
+        
+        if let Some(obj) = schema_value.as_object_mut() {
+            obj.remove("$defs");
+        }
+        
         let response_format = ResponseFormat::JsonSchema {
             json_schema: ResponseFormatJsonSchema {
                 description: None,
@@ -189,7 +203,7 @@ impl ModelService {
         };
 
         let request = CreateChatCompletionRequestArgs::default()
-            .max_tokens(512u32)
+            .max_tokens(2048u32)
             .model("liquid/lfm2-1.2b")
             .messages(messages)
             .response_format(response_format)
@@ -205,6 +219,41 @@ impl ModelService {
         }
 
         Ok(None)
+    }
+    
+    fn inline_schema_refs(schema: &mut Value, defs: &Value) {
+        match schema {
+            Value::Object(obj) => {
+                // Check if this object has a $ref
+                if let Some(ref_value) = obj.get("$ref").cloned() {
+                    if let Some(ref_str) = ref_value.as_str() {
+                        // Extract the definition name from #/$defs/Name
+                        if let Some(def_name) = ref_str.strip_prefix("#/$defs/") {
+                            if let Some(def) = defs.get(def_name) {
+                                // Replace the $ref with the actual definition
+                                obj.clear();
+                                if let Value::Object(def_obj) = def {
+                                    for (k, v) in def_obj {
+                                        obj.insert(k.clone(), v.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Recursively process all values
+                for (_, v) in obj.iter_mut() {
+                    Self::inline_schema_refs(v, defs);
+                }
+            }
+            Value::Array(arr) => {
+                for item in arr.iter_mut() {
+                    Self::inline_schema_refs(item, defs);
+                }
+            }
+            _ => {}
+        }
     }
 }
 
