@@ -218,15 +218,40 @@ impl StepHandler {
 
         let new_quiz_dto: QuizRequestDto = serde_json::from_str(&response)
             .map_err(|e| format!("Failed to parse quiz from job results: {}", e))?;
-        let new_quiz: Quiz = new_quiz_dto
-            .try_into()
-            .map_err(|e| format!("Failed to validate quiz from job results: {}", e))?;
 
         let mut quiz = app_state
             .quiz_service
             .get_quiz(&quiz_id)
             .await
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
+
+        let mut new_quiz_dto = new_quiz_dto;
+        new_quiz_dto.id = quiz.id.clone();
+        new_quiz_dto.name = quiz.name.clone();
+        new_quiz_dto.created_by_user_id = quiz.created_by_user_id.clone();
+        new_quiz_dto.question_count = quiz.question_count.to_string();
+        new_quiz_dto.required_score = quiz.required_score.to_string();
+        new_quiz_dto.attempt_limit = quiz.attempt_limit.to_string();
+        new_quiz_dto.status = format!("{:?}", quiz.status).to_lowercase();
+        new_quiz_dto.url = quiz.url.clone();
+        new_quiz_dto.created_at = quiz
+            .created_at
+            .map(|dt| dt.to_rfc3339())
+            .unwrap_or_default();
+        new_quiz_dto.modified_at = quiz
+            .modified_at
+            .map(|dt| dt.to_rfc3339())
+            .unwrap_or_default();
+
+        for question in &mut new_quiz_dto.questions {
+            if question.attempt_limit.trim().is_empty() {
+                question.attempt_limit = quiz.attempt_limit.to_string();
+            }
+        }
+
+        let new_quiz: Quiz = new_quiz_dto
+            .try_into()
+            .map_err(|e| format!("Failed to validate quiz from job results: {}", e))?;
 
         quiz.status = crate::models::domain::quiz::QuizStatus::Ready;
         quiz.modified_at = Some(chrono::Utc::now());

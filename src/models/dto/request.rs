@@ -129,8 +129,7 @@ impl TryFrom<QuizQuestionRequestDto> for QuizQuestion {
     type Error = AppError;
 
     fn try_from(dto: QuizQuestionRequestDto) -> Result<Self, Self::Error> {
-        let options: Vec<QuizQuestionOption> = serde_json::from_str(&dto.options)
-            .map_err(|e| AppError::ValidationError(format!("Invalid options JSON: {}", e)))?;
+        let options = parse_options_json(&dto.options)?;
 
         Ok(QuizQuestion {
             id: dto.id,
@@ -310,6 +309,84 @@ fn parse_question_type(value: &str) -> AppResult<QuizQuestionType> {
             value
         ))),
     }
+}
+
+fn parse_options_json(value: &str) -> AppResult<Vec<QuizQuestionOption>> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::ValidationError(
+            "Options JSON cannot be empty".to_string(),
+        ));
+    }
+
+    let parsed: serde_json::Value = serde_json::from_str(trimmed)
+        .or_else(|_| attempt_repair_options_json(trimmed))
+        .map_err(|e| AppError::ValidationError(format!("Invalid options JSON: {}", e)))?;
+
+    let items = parsed.as_array().ok_or_else(|| {
+        AppError::ValidationError("Options JSON must be an array".to_string())
+    })?;
+
+    let mut options = Vec::with_capacity(items.len());
+    for (index, item) in items.iter().enumerate() {
+        let obj = item.as_object().ok_or_else(|| {
+            AppError::ValidationError(format!(
+                "Option at index {} must be an object",
+                index
+            ))
+        })?;
+
+        let id = obj
+            .get("id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                AppError::ValidationError(format!("Option {} missing id", index))
+            })?
+            .to_string();
+        let text = obj
+            .get("text")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                AppError::ValidationError(format!("Option {} missing text", index))
+            })?
+            .to_string();
+        let correct = obj
+            .get("correct")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let explanation = obj
+            .get("explanation")
+            .and_then(|v| v.as_str())
+            .unwrap_or("No explanation provided.")
+            .to_string();
+
+        options.push(QuizQuestionOption {
+            id,
+            text,
+            correct,
+            explanation,
+        });
+    }
+
+    Ok(options)
+}
+
+fn attempt_repair_options_json(value: &str) -> Result<serde_json::Value, serde_json::Error> {
+    if value.starts_with('[') && !value.ends_with(']') {
+        let repaired = format!("{}]", value);
+        if let Ok(parsed) = serde_json::from_str(&repaired) {
+            return Ok(parsed);
+        }
+    }
+
+    if value.starts_with('{') && value.ends_with('}') {
+        let wrapped = format!("[{}]", value);
+        if let Ok(parsed) = serde_json::from_str(&wrapped) {
+            return Ok(parsed);
+        }
+    }
+
+    serde_json::from_str(value)
 }
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
