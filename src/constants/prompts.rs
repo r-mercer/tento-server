@@ -9,6 +9,8 @@ pub const SUMMARISER_GENERATOR_PROMPT: &str = r#"You are a combined website summ
 
 ## TOOL USAGE REQUIREMENTS
 
+**MAXIMUM TOOL CALLS: 6** - You have a budget of up to 6 tool calls. Use them efficiently and prioritize essential retrievals.
+
 You MAY use tools for retrieving website content:
 - fetch_webpage: Use this tool to retrieve the full text content from a URL. Provide the URL and a specific query describing what information you need to extract.
 - open_simple_browser: Use this tool to preview and inspect website structure if needed before detailed content extraction.
@@ -115,18 +117,25 @@ Each question object must contain these fields (all strings):
 
 ## OPTION OBJECT SPECIFICATIONS
 
-Each option object in the options JSON string must contain:
+**CRITICAL**: The options field MUST be a JSON string containing an array of objects, NOT a simple string array.
 
-- id: Valid UUID string (unique across all options)
+Each option object in the options JSON string must contain these exact fields:
+
+- id: Valid UUID string (unique across all options) 
 - text: String (the option text - clear and distinct from other options)
 - correct: Boolean (true if this is a correct answer, false otherwise)
 - explanation: String (mandatory for all options. Explain why this is correct/incorrect, citing the source material)
 
-Example options field (as a string):
-[{"id":"<uuid>","text":"...","correct":true,"explanation":"..."},{"id":"<uuid>","text":"...","correct":false,"explanation":"..."}]
+**CORRECT FORMAT** (options field value as a JSON string):
+[{"id":"550e8400-e29b-41d4-a716-446655440000","text":"Option A","correct":true,"explanation":"This is correct because..."},{"id":"550e8400-e29b-41d4-a716-446655440001","text":"Option B","correct":false,"explanation":"This is incorrect because..."}]
+
+**INCORRECT FORMATS** (DO NOT USE THESE):
+- Simple string array: ["Option A", "Option B"] ❌
+- Plain text list: "Option A, Option B" ❌
+- Missing required fields: [{"text":"Option A"}] ❌
+- Nested arrays: [[{...}]] ❌
 
 The options string must be valid, fully closed JSON (balanced brackets/braces). Do not truncate or omit the closing ].
-The options string must not be empty.
 
 ## QUESTION TYPE REQUIREMENTS
 
@@ -188,6 +197,8 @@ pub const WEBSITE_SUMMARISER_PROMPT: &str = "You are a website content extractio
 5. Flag uncertainties, missing content, or access limitations explicitly
 
 ## TOOL USAGE REQUIREMENTS
+
+**MAXIMUM TOOL CALLS: 6** - You have a budget of up to 6 tool calls. Use them efficiently and prioritize essential retrievals.
 
 You MAY use tools for retrieving website content:
 - fetch_webpage: Use this tool to retrieve the full text content from a URL. Provide the URL and a specific query describing what information you need to extract.
@@ -341,7 +352,11 @@ Each question object must contain these fields (all strings):
 - id: Valid UUID string (unique across all questions)
 - title: String (the question text - clear, unambiguous)
 - description: String (additional context or explanation)
-- question_type: One of: \"single\", \"multi\", or \"bool\"
+- question_type: **MUST BE EXACTLY ONE OF**: "single", "multi", or "bool" (lowercase, no spaces, no variations)
+  * "single" = one correct answer (standard multiple choice)
+  * "multi" = multiple correct answers (select all that apply)
+  * "bool" = true/false question (exactly 2 options)
+  * DO NOT USE: "Multiple Choice", "Single Choice", "True/False" or any other variations
 - options: String containing a JSON array of option objects (see below)
 - option_count: String integer (number of options in the array, typically 4)
 - order: String integer (sequential 0-based index within the quiz)

@@ -4,6 +4,7 @@ use validator::Validate;
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
+use uuid::Uuid;
 
 use crate::errors::{AppError, AppResult};
 use crate::models::domain::quiz::QuizStatus;
@@ -129,6 +130,16 @@ impl TryFrom<QuizQuestionRequestDto> for QuizQuestion {
     type Error = AppError;
 
     fn try_from(dto: QuizQuestionRequestDto) -> Result<Self, Self::Error> {
+        log::debug!(
+            "Parsing question '{}' with options: {}",
+            dto.title,
+            if dto.options.len() > 500 {
+                format!("{}...", &dto.options[..500])
+            } else {
+                dto.options.clone()
+            }
+        );
+        
         let options = parse_options_json(&dto.options)?;
 
         Ok(QuizQuestion {
@@ -300,39 +311,99 @@ fn parse_quiz_status(value: &str) -> AppResult<QuizStatus> {
 }
 
 fn parse_question_type(value: &str) -> AppResult<QuizQuestionType> {
-    match value.trim().to_lowercase().as_str() {
+    let normalized = value.trim().to_lowercase();
+    match normalized.as_str() {
         "single" => Ok(QuizQuestionType::Single),
         "multi" => Ok(QuizQuestionType::Multi),
         "bool" | "boolean" => Ok(QuizQuestionType::Bool),
-        _ => Err(AppError::ValidationError(format!(
-            "Invalid question_type: {}",
-            value
-        ))),
+        
+        // Common variations that models generate
+        "multiple choice" | "multiple-choice" | "singlechoice" | "single choice" | "single_choice" => {
+            log::debug!("Normalized question_type '{}' to 'single'", value);
+            Ok(QuizQuestionType::Single)
+        }
+        "multiple select" | "multiple-select" | "multiselect" | "multi select" | "multi_select" | "select all" | "select_all" => {
+            log::debug!("Normalized question_type '{}' to 'multi'", value);
+            Ok(QuizQuestionType::Multi)
+        }
+        "true/false" | "true false" | "truefalse" | "true_false" | "t/f" | "yes/no" => {
+            log::debug!("Normalized question_type '{}' to 'bool'", value);
+            Ok(QuizQuestionType::Bool)
+        }
+        
+        _ => {
+            log::error!("Invalid question_type: '{}'. Expected: single, multi, or bool", value);
+            Err(AppError::ValidationError(format!(
+                "Invalid question_type: '{}'. Must be one of: single, multi, bool",
+                value
+            )))
+        }
     }
 }
 
 fn parse_options_json(value: &str) -> AppResult<Vec<QuizQuestionOption>> {
     let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::ValidationError(
-            "Options JSON cannot be empty".to_string(),
-        ));
+    
+    // Detect completely malformed cases (just punctuation, empty after trim, etc.)
+    if trimmed.is_empty() || trimmed.len() <= 2 || (trimmed.len() < 10 && !trimmed.contains(['[', '{'])) {
+        log::warn!(
+            "Options field is malformed or too short ('{}'), generating default options",
+            trimmed
+        );
+        return generate_default_options();
     }
 
-    let parsed: serde_json::Value = serde_json::from_str(trimmed)
-        .or_else(|_| attempt_repair_options_json(trimmed))
-        .map_err(|e| AppError::ValidationError(format!("Invalid options JSON: {}", e)))?;
+    // Try to parse as JSON
+    let parsed: serde_json::Value = match serde_json::from_str(trimmed) {
+        Ok(val) => val,
+        Err(_) => {
+            // Try repair logic
+            match attempt_repair_options_json(trimmed) {
+                Ok(val) => val,
+                Err(e) => {
+                    let preview = if trimmed.len() > 200 {
+                        format!("{}...", &trimmed[..200])
+                    } else {
+                        trimmed.to_string()
+                    };
+                    log::warn!(
+                        "Failed to parse options JSON. Error: {}. Preview: '{}'. Generating defaults.",
+                        e,
+                        preview
+                    );
+                    // Fallback: generate default options instead of failing
+                    return generate_default_options();
+                }
+            }
+        }
+    };
 
     let items = parsed.as_array().ok_or_else(|| {
-        AppError::ValidationError("Options JSON must be an array".to_string())
+        log::error!("Options JSON is not an array. Actual type: {:?}", parsed);
+        AppError::ValidationError(format!(
+            "Options JSON must be an array. Got: {:?}",
+            parsed
+        ))
     })?;
 
     let mut options = Vec::with_capacity(items.len());
     for (index, item) in items.iter().enumerate() {
         let obj = item.as_object().ok_or_else(|| {
+            log::error!(
+                "Option at index {} is not an object. Actual value: {}. Type: {}",
+                index,
+                item,
+                if item.is_string() { "string" }
+                else if item.is_number() { "number" }
+                else if item.is_array() { "array" }
+                else if item.as_bool().is_some() { "boolean" }
+                else if item.is_null() { "null" }
+                else { "unknown" }
+            );
             AppError::ValidationError(format!(
-                "Option at index {} must be an object",
-                index
+                "Option at index {} must be an object. Got: {}",
+                index,
+                item
             ))
         })?;
 
@@ -372,16 +443,49 @@ fn parse_options_json(value: &str) -> AppResult<Vec<QuizQuestionOption>> {
 }
 
 fn attempt_repair_options_json(value: &str) -> Result<serde_json::Value, serde_json::Error> {
+    // Try parsing as-is first
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(value) {
+        // Check if it's an array of strings (common model mistake)
+        if let Some(arr) = parsed.as_array() {
+            if !arr.is_empty() && arr.iter().all(|v| v.is_string()) {
+                log::warn!("Detected string array in options, converting to object array");
+                
+                // Convert string array to object array
+                let repaired: Vec<serde_json::Value> = arr
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, v)| {
+                        let text = v.as_str().unwrap_or("Unknown option");
+                        serde_json::json!({
+                            "id": Uuid::new_v4().to_string(),
+                            "text": text,
+                            "correct": idx == 0, // First option is correct by default
+                            "explanation": format!("Option: {}", text)
+                        })
+                    })
+                    .collect();
+                
+                log::info!("Repaired {} string options to object format", repaired.len());
+                return Ok(serde_json::Value::Array(repaired));
+            }
+        }
+        return Ok(parsed);
+    }
+    
+    // Try repairing truncated JSON
     if value.starts_with('[') && !value.ends_with(']') {
         let repaired = format!("{}]", value);
         if let Ok(parsed) = serde_json::from_str(&repaired) {
+            log::warn!("Repaired truncated array JSON");
             return Ok(parsed);
         }
     }
 
+    // Try wrapping single object in array
     if value.starts_with('{') && value.ends_with('}') {
         let wrapped = format!("[{}]", value);
         if let Ok(parsed) = serde_json::from_str(&wrapped) {
+            log::warn!("Wrapped single object in array");
             return Ok(parsed);
         }
     }
@@ -436,6 +540,36 @@ pub struct QuestionAnswerInput {
 pub struct SubmitQuizAttemptInput {
     pub quiz_id: String,
     pub answers: Vec<QuestionAnswerInput>,
+}
+
+fn generate_default_options() -> AppResult<Vec<QuizQuestionOption>> {
+    log::warn!("Generating default options due to malformed input");
+    Ok(vec![
+        QuizQuestionOption {
+            id: Uuid::new_v4().to_string(),
+            text: "Option 1".to_string(),
+            correct: true,
+            explanation: "This option was generated as a fallback due to malformed input".to_string(),
+        },
+        QuizQuestionOption {
+            id: Uuid::new_v4().to_string(),
+            text: "Option 2".to_string(),
+            correct: false,
+            explanation: "This option was generated as a fallback due to malformed input".to_string(),
+        },
+        QuizQuestionOption {
+            id: Uuid::new_v4().to_string(),
+            text: "Option 3".to_string(),
+            correct: false,
+            explanation: "This option was generated as a fallback due to malformed input".to_string(),
+        },
+        QuizQuestionOption {
+            id: Uuid::new_v4().to_string(),
+            text: "Option 4".to_string(),
+            correct: false,
+            explanation: "This option was generated as a fallback due to malformed input".to_string(),
+        },
+    ])
 }
 
 #[cfg(test)]

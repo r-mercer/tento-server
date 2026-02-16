@@ -216,8 +216,23 @@ impl StepHandler {
 
         // let newval = job.results.get("response").to_owned();
 
+        log::debug!(
+            "Raw quiz response length: {} bytes. Preview: {}",
+            response.len(),
+            if response.len() > 1000 {
+                format!("{}...", &response[..1000])
+            } else {
+                response.clone()
+            }
+        );
+
         let new_quiz_dto: QuizRequestDto = serde_json::from_str(&response)
-            .map_err(|e| format!("Failed to parse quiz from job results: {}", e))?;
+            .map_err(|e| {
+                log::error!("Failed to parse quiz JSON: {}", e);
+                log::error!("Response tail (last 500): ...{}", 
+                    &response[response.len().saturating_sub(500)..]);
+                format!("Failed to parse quiz from job results: {}", e)
+            })?;
 
         let mut quiz = app_state
             .quiz_service
@@ -244,6 +259,18 @@ impl StepHandler {
             .unwrap_or_default();
 
         for question in &mut new_quiz_dto.questions {
+            log::debug!(
+                "Question {}: title='{}', options length={}, options preview='{}'",
+                question.order,
+                question.title,
+                question.options.len(),
+                if question.options.len() > 200 {
+                    format!("{}...", &question.options[..200])
+                } else {
+                    question.options.clone()
+                }
+            );
+            
             if question.attempt_limit.trim().is_empty() {
                 question.attempt_limit = quiz.attempt_limit.to_string();
             }
