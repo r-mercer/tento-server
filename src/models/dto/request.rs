@@ -131,10 +131,6 @@ impl UpdateQuizRequest {
     }
 }
 
-// ============================================================================
-// Chat Request DTOs
-// ============================================================================
-
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject)]
 pub struct ChatCompletionRequest {
     #[validate(length(min = 1, max = 10000))]
