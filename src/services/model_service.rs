@@ -18,7 +18,7 @@ use crate::{
     config::Config,
     constants::{prompts::QUIZ_GENERATOR_PROMPT, WEBSITE_SUMMARISER_PROMPT},
     errors::{AppError, AppResult},
-    models::domain::{summary_document::SummaryDocument, Quiz},
+    models::dto::request::{QuizRequestDto, SummaryDocumentRequestDto},
 };
 
 pub struct ModelService {
@@ -96,8 +96,8 @@ impl ModelService {
 
     pub async fn quiz_generator(
         &self,
-        quiz: Quiz,
-        summary_document: SummaryDocument,
+        quiz: QuizRequestDto,
+        summary_document: SummaryDocumentRequestDto,
     ) -> AppResult<String> {
         let quiz_json = serde_json::to_string(&quiz)
             .map_err(|e| AppError::InternalError(format!("Failed to serialize quiz: {}", e)))?;
@@ -146,17 +146,15 @@ impl ModelService {
 
     pub async fn structured_quiz_generator(
         &self,
-        _quiz: Quiz,
-        summary_document: SummaryDocument,
-    ) -> AppResult<Quiz> {
-        // let quiz_json = serde_json::to_string(&quiz)
-        //     .map_err(|e| AppError::InternalError(format!("Failed to serialize quiz: {}", e)))?;
-        // let summary_json = serde_json::to_string(&summary_document).map_err(|e| {
-        //     AppError::InternalError(format!("Failed to serialize summary document: {}", e))
-        // })?;
+        quiz: QuizRequestDto,
+        summary_document: SummaryDocumentRequestDto,
+    ) -> AppResult<QuizRequestDto> {
+        let quiz_json = serde_json::to_string(&quiz)
+            .map_err(|e| AppError::InternalError(format!("Failed to serialize quiz: {}", e)))?;
 
-        match Self::structured_output::<Quiz>(vec![
+        match Self::structured_output::<QuizRequestDto>(vec![
             ChatCompletionRequestSystemMessage::from(QUIZ_GENERATOR_PROMPT).into(),
+            ChatCompletionRequestUserMessage::from(quiz_json).into(),
             ChatCompletionRequestUserMessage::from(summary_document.content).into(),
         ])
         .await

@@ -3,6 +3,7 @@ use serde::Deserialize;
 use validator::Validate;
 
 use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
 
 use crate::models::domain::quiz::QuizStatus;
 use crate::models::domain::quiz_question::{QuizQuestionOption, QuizQuestionType};
@@ -63,7 +64,7 @@ pub struct CreateQuizDraftRequest {
     pub url: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+#[derive(Debug, Clone, Deserialize, Validate, InputObject, JsonSchema)]
 pub struct QuizRequestDto {
     pub id: String,
     pub name: String,
@@ -81,7 +82,7 @@ pub struct QuizRequestDto {
     pub modified_at: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+#[derive(Debug, Clone, Deserialize, Validate, InputObject, JsonSchema)]
 pub struct QuizQuestionRequestDto {
     pub id: String,
     pub title: String,
@@ -203,7 +204,7 @@ impl From<QuizRequestDto> for Quiz {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+#[derive(Debug, Clone, Deserialize, Validate, InputObject, JsonSchema)]
 pub struct SummaryDocumentRequestDto {
     pub id: String,
     pub quiz_id: String,
@@ -261,12 +262,7 @@ fn parse_optional_datetime(value: &str) -> Option<DateTime<Utc>> {
 }
 
 fn none_if_empty(value: String) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(value)
-    }
+    Some(value)
 }
 
 fn parse_quiz_status(value: &str) -> QuizStatus {

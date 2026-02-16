@@ -1,6 +1,7 @@
 use crate::{
     app_state::AppState,
     models::domain::{summary_document::SummaryDocument, Quiz},
+    models::dto::request::{QuizRequestDto, SummaryDocumentRequestDto},
     services::agent_orchestrator_service::{AgentJob, JobStep},
 };
 use serde_json::json;
@@ -153,9 +154,12 @@ impl StepHandler {
             .await
             .map_err(|e| format!("Failed to fetch summary document: {}", e))?;
 
+        let quiz_dto = QuizRequestDto::from(quiz);
+        let summary_dto = SummaryDocumentRequestDto::from(summary_document);
+
         match app_state
             .model_service
-            .structured_quiz_generator(quiz, summary_document)
+            .structured_quiz_generator(quiz_dto, summary_dto)
             .await
         {
             Ok(response) => {
@@ -195,8 +199,9 @@ impl StepHandler {
 
         // let newval = job.results.get("response").to_owned();
 
-        let new_quiz: Quiz = serde_json::from_str(&response)
+        let new_quiz_dto: QuizRequestDto = serde_json::from_str(&response)
             .map_err(|e| format!("Failed to parse quiz from job results: {}", e))?;
+        let new_quiz: Quiz = new_quiz_dto.into();
 
         let mut quiz = app_state
             .quiz_service
