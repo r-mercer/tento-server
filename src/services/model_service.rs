@@ -3,15 +3,19 @@ use std::error::Error;
 use async_openai::{
     config::OpenAIConfig,
     types::chat::{
+        ChatCompletionMessageToolCalls, ChatCompletionRequestAssistantMessage,
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
-        ChatCompletionRequestUserMessage, ChatCompletionRequestUserMessageArgs,
-        CreateChatCompletionRequestArgs, ResponseFormat, ResponseFormatJsonSchema,
+        ChatCompletionRequestToolMessage, ChatCompletionRequestUserMessage,
+        ChatCompletionRequestUserMessageArgs, ChatCompletionTool,
+        ChatCompletionToolChoiceOption, ChatCompletionTools, CreateChatCompletionRequestArgs,
+        FunctionCall, FunctionObject, ResponseFormat, ResponseFormatJsonSchema, ToolChoiceOptions,
     },
     Client,
 };
 use schemars::{schema_for, JsonSchema};
 use secrecy::ExposeSecret;
 use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::{
@@ -23,6 +27,21 @@ use crate::{
 
 pub struct ModelService {
     client: Client<OpenAIConfig>,
+}
+
+const TOOL_MAX_ATTEMPTS: u32 = 6;
+const TOOL_MAX_CONTENT_LENGTH: usize = 20000;
+const STRUCTURED_OUTPUT_MAX_TOKENS: u32 = 4096;
+
+#[derive(Debug, Deserialize)]
+struct FetchWebpageArgs {
+    url: String,
+    query: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenSimpleBrowserArgs {
+    url: String,
 }
 
 impl ModelService {
@@ -152,9 +171,9 @@ impl ModelService {
                     "Tool calls are disabled for structured output. Do not call tools.",
                 )
                 .into(),
-            ChatCompletionRequestSystemMessage::from(QUIZ_GENERATOR_PROMPT).into(),
-            ChatCompletionRequestUserMessage::from(quiz_json).into(),
-            ChatCompletionRequestUserMessage::from(summary_document.content).into(),
+                ChatCompletionRequestSystemMessage::from(QUIZ_GENERATOR_PROMPT).into(),
+                ChatCompletionRequestUserMessage::from(quiz_json).into(),
+                ChatCompletionRequestUserMessage::from(summary_document.content).into(),
             ])
             .await
         {
@@ -175,15 +194,18 @@ impl ModelService {
         &self,
         url_string: &str,
     ) -> AppResult<SummaryDocumentRequestDto> {
+        let tools = vec![
+            Self::build_fetch_webpage_tool()?,
+            Self::build_open_simple_browser_tool()?,
+        ];
         match self
-            .structured_output::<SummaryDocumentRequestDto>(vec![
-                ChatCompletionRequestSystemMessage::from(
-                    "Tool calls are disabled for structured output. Do not call tools.",
-                )
-                .into(),
-            ChatCompletionRequestSystemMessage::from(WEBSITE_SUMMARISER_PROMPT).into(),
-            ChatCompletionRequestUserMessage::from(url_string).into(),
-            ])
+            .structured_output_with_tools::<SummaryDocumentRequestDto>(
+                vec![
+                    ChatCompletionRequestSystemMessage::from(WEBSITE_SUMMARISER_PROMPT).into(),
+                    ChatCompletionRequestUserMessage::from(url_string).into(),
+                ],
+                tools,
+            )
             .await
         {
             Ok(Some(summary_document)) => Ok(summary_document),
@@ -227,7 +249,7 @@ impl ModelService {
         };
 
         let request = CreateChatCompletionRequestArgs::default()
-            .max_tokens(2048u32)
+            .max_tokens(STRUCTURED_OUTPUT_MAX_TOKENS)
             .model("liquid/lfm2-1.2b")
             .messages(messages)
             .response_format(response_format)
@@ -242,6 +264,104 @@ impl ModelService {
         }
 
         Ok(None)
+    }
+
+    pub async fn structured_output_with_tools<
+        T: serde::Serialize + DeserializeOwned + JsonSchema,
+    >(
+        &self,
+        mut messages: Vec<ChatCompletionRequestMessage>,
+        tools: Vec<ChatCompletionTools>,
+    ) -> Result<Option<T>, Box<dyn Error>> {
+        let mut attempts = 0;
+
+        loop {
+            attempts += 1;
+            if attempts > TOOL_MAX_ATTEMPTS {
+                return Err("Tool loop exceeded maximum attempts".into());
+            }
+
+            let schema = schema_for!(T);
+            let mut schema_value = serde_json::to_value(&schema)?;
+
+            let defs = if let Some(obj) = schema_value.get("$defs") {
+                obj.clone()
+            } else {
+                Value::Object(Default::default())
+            };
+
+            Self::inline_schema_refs(&mut schema_value, &defs);
+
+            if let Some(obj) = schema_value.as_object_mut() {
+                obj.remove("$defs");
+            }
+
+            let response_format = ResponseFormat::JsonSchema {
+                json_schema: ResponseFormatJsonSchema {
+                    description: None,
+                    name: "math_reasoning".into(),
+                    schema: Some(schema_value),
+                    strict: Some(true),
+                },
+            };
+
+            let request = CreateChatCompletionRequestArgs::default()
+                .max_tokens(STRUCTURED_OUTPUT_MAX_TOKENS)
+                .model("liquid/lfm2-1.2b")
+                .messages(messages.clone())
+                .response_format(response_format)
+                .tools(tools.clone())
+                .tool_choice(ChatCompletionToolChoiceOption::Mode(ToolChoiceOptions::Auto))
+                .build()?;
+
+            let response = self.client.chat().create(request).await?;
+            let choice = response
+                .choices
+                .into_iter()
+                .next()
+                .ok_or("No response from LLM")?;
+
+            if let Some(tool_calls) = choice.message.tool_calls {
+                let assistant = ChatCompletionRequestAssistantMessage {
+                    content: None,
+                    tool_calls: Some(tool_calls.clone()),
+                    ..Default::default()
+                };
+                messages.push(assistant.into());
+
+                for tool_call in tool_calls {
+                    match tool_call {
+                        ChatCompletionMessageToolCalls::Function(call) => {
+                            let tool_output = self.execute_tool_call(&call.function).await?;
+                            let tool_message = ChatCompletionRequestToolMessage {
+                                content: tool_output.into(),
+                                tool_call_id: call.id,
+                            };
+                            messages.push(tool_message.into());
+                        }
+                        ChatCompletionMessageToolCalls::Custom(call) => {
+                            let tool_message = ChatCompletionRequestToolMessage {
+                                content: format!(
+                                    "Unsupported custom tool: {}",
+                                    call.custom_tool.name
+                                )
+                                .into(),
+                                tool_call_id: call.id,
+                            };
+                            messages.push(tool_message.into());
+                        }
+                    }
+                }
+
+                continue;
+            }
+
+            if let Some(content) = choice.message.content {
+                return Ok(Some(serde_json::from_str::<T>(&content)?));
+            }
+
+            return Ok(None);
+        }
     }
     
     fn inline_schema_refs(schema: &mut Value, defs: &Value) {
@@ -278,6 +398,143 @@ impl ModelService {
             _ => {}
         }
     }
+
+    fn build_fetch_webpage_tool() -> AppResult<ChatCompletionTools> {
+        let parameters = json!({
+            "type": "object",
+            "properties": {
+                "url": {"type": "string"},
+                "query": {"type": "string"}
+            },
+            "required": ["url", "query"]
+        });
+
+        let function = FunctionObject {
+            name: "fetch_webpage".to_string(),
+            description: Some(
+                "Fetch the text content of a URL and return the relevant content for the query"
+                    .to_string(),
+            ),
+            parameters: Some(parameters),
+            strict: Some(true),
+        };
+
+        Ok(ChatCompletionTools::Function(ChatCompletionTool { function }))
+    }
+
+    fn build_open_simple_browser_tool() -> AppResult<ChatCompletionTools> {
+        let parameters = json!({
+            "type": "object",
+            "properties": {
+                "url": {"type": "string"}
+            },
+            "required": ["url"]
+        });
+
+        let function = FunctionObject {
+            name: "open_simple_browser".to_string(),
+            description: Some(
+                "Preview a URL and return a short, plain-text snapshot of the page"
+                    .to_string(),
+            ),
+            parameters: Some(parameters),
+            strict: Some(true),
+        };
+
+        Ok(ChatCompletionTools::Function(ChatCompletionTool { function }))
+    }
+
+    async fn execute_tool_call(
+        &self,
+        function: &FunctionCall,
+    ) -> Result<String, Box<dyn Error>> {
+        match function.name.as_str() {
+            "fetch_webpage" => {
+                let args: FetchWebpageArgs = serde_json::from_str(&function.arguments)?;
+                let content = self.fetch_webpage(&args.url, &args.query).await?;
+                Ok(json!({
+                    "url": args.url,
+                    "query": args.query,
+                    "content": content
+                })
+                .to_string())
+            }
+            "open_simple_browser" => {
+                let args: OpenSimpleBrowserArgs = serde_json::from_str(&function.arguments)?;
+                let content = self.fetch_webpage(&args.url, "preview").await?;
+                Ok(json!({
+                    "url": args.url,
+                    "content": content
+                })
+                .to_string())
+            }
+            _ => Ok(json!({
+                "error": format!("Unsupported tool: {}", function.name)
+            })
+            .to_string()),
+        }
+    }
+
+    async fn fetch_webpage(&self, url: &str, query: &str) -> Result<String, Box<dyn Error>> {
+        let response = reqwest::Client::new()
+            .get(url)
+            .header("User-Agent", "tento-server/1.0")
+            .send()
+            .await?;
+
+        let status = response.status();
+        let mut body = response.text().await.unwrap_or_default();
+        body = strip_html_tags(&body);
+        body = collapse_whitespace(&body);
+        if body.len() > TOOL_MAX_CONTENT_LENGTH {
+            body.truncate(TOOL_MAX_CONTENT_LENGTH);
+            body.push_str("\n[TRUNCATED]");
+        }
+
+        if !status.is_success() {
+            return Ok(format!(
+                "Failed to fetch URL. Status: {}. Body (truncated): {}",
+                status,
+                body
+            ));
+        }
+
+        Ok(format!("Query: {}\n{}", query, body))
+    }
+}
+
+fn strip_html_tags(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut in_tag = false;
+    for ch in input.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ => {
+                if !in_tag {
+                    out.push(ch);
+                }
+            }
+        }
+    }
+    out
+}
+
+fn collapse_whitespace(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut was_space = false;
+    for ch in input.chars() {
+        if ch.is_whitespace() {
+            if !was_space {
+                out.push(' ');
+                was_space = true;
+            }
+        } else {
+            was_space = false;
+            out.push(ch);
+        }
+    }
+    out.trim().to_string()
 }
 
 #[cfg(test)]
