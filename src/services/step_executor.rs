@@ -121,7 +121,9 @@ impl StepHandler {
                     created_at: now.clone(),
                     modified_at: now,
                 };
-                let new_doc: SummaryDocument = summary_request.into();
+                let new_doc: SummaryDocument = summary_request
+                    .try_into()
+                    .map_err(|e| format!("Failed to parse summary document: {}", e))?;
                 app_state
                     .summary_document_service
                     .create_summary_document(new_doc.clone())
@@ -216,7 +218,9 @@ impl StepHandler {
 
         let new_quiz_dto: QuizRequestDto = serde_json::from_str(&response)
             .map_err(|e| format!("Failed to parse quiz from job results: {}", e))?;
-        let new_quiz: Quiz = new_quiz_dto.into();
+        let new_quiz: Quiz = new_quiz_dto
+            .try_into()
+            .map_err(|e| format!("Failed to validate quiz from job results: {}", e))?;
 
         let mut quiz = app_state
             .quiz_service

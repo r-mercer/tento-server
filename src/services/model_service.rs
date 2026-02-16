@@ -66,8 +66,8 @@ impl ModelService {
     }
 
     pub async fn website_summariser(&self, url_string: &str) -> AppResult<String> {
-        let summ_client = Client::new();
-        let response: Value = summ_client
+        let response: Value = self
+            .client
             .chat()
             .create_byot(json!({
                 "messages": [
@@ -86,10 +86,7 @@ impl ModelService {
             .await?;
 
         let content = response["choices"][0]["message"]["content"].to_string();
-        // if let Some(content) = response.output_text().to_string() {
-        // Ok(response.output_text())
-        println!("content: {}", content);
-        // Ok(response.to_string())
+        log::debug!("website_summariser content length: {}", content.len());
 
         Ok(content)
     }
@@ -104,8 +101,8 @@ impl ModelService {
         let summary_json = serde_json::to_string(&summary_document).map_err(|e| {
             AppError::InternalError(format!("Failed to serialize summary document: {}", e))
         })?;
-        let summ_client = Client::new();
-        let response: Value = summ_client
+        let response: Value = self
+            .client
             .chat()
             .create_byot(json!({
                 "messages": [
@@ -135,10 +132,7 @@ impl ModelService {
         // println!("response-content: {}", content);
 
         let content = response["choices"][0]["message"]["content"].to_string();
-        // if let Some(content) = response.output_text().to_string() {
-        // Ok(response.output_text())
-        println!("content: {}", content);
-        // Ok(response.to_string())
+        log::debug!("quiz_generator content length: {}", content.len());
 
         Ok(content)
         // Ok(response["choices"][0]["message"]["content"].to_string())
@@ -152,12 +146,17 @@ impl ModelService {
         let quiz_json = serde_json::to_string(&quiz)
             .map_err(|e| AppError::InternalError(format!("Failed to serialize quiz: {}", e)))?;
 
-        match Self::structured_output::<QuizRequestDto>(vec![
+        match self
+            .structured_output::<QuizRequestDto>(vec![
+                ChatCompletionRequestSystemMessage::from(
+                    "Tool calls are disabled for structured output. Do not call tools.",
+                )
+                .into(),
             ChatCompletionRequestSystemMessage::from(QUIZ_GENERATOR_PROMPT).into(),
             ChatCompletionRequestUserMessage::from(quiz_json).into(),
             ChatCompletionRequestUserMessage::from(summary_document.content).into(),
-        ])
-        .await
+            ])
+            .await
         {
             Ok(Some(generated_quiz)) => Ok(generated_quiz),
             Ok(None) => Err(AppError::InternalError(
@@ -176,11 +175,16 @@ impl ModelService {
         &self,
         url_string: &str,
     ) -> AppResult<SummaryDocumentRequestDto> {
-        match Self::structured_output::<SummaryDocumentRequestDto>(vec![
+        match self
+            .structured_output::<SummaryDocumentRequestDto>(vec![
+                ChatCompletionRequestSystemMessage::from(
+                    "Tool calls are disabled for structured output. Do not call tools.",
+                )
+                .into(),
             ChatCompletionRequestSystemMessage::from(WEBSITE_SUMMARISER_PROMPT).into(),
             ChatCompletionRequestUserMessage::from(url_string).into(),
-        ])
-        .await
+            ])
+            .await
         {
             Ok(Some(summary_document)) => Ok(summary_document),
             Ok(None) => Err(AppError::InternalError(
@@ -194,6 +198,7 @@ impl ModelService {
     }
 
     pub async fn structured_output<T: serde::Serialize + DeserializeOwned + JsonSchema>(
+        &self,
         messages: Vec<ChatCompletionRequestMessage>,
     ) -> Result<Option<T>, Box<dyn Error>> {
         let schema = schema_for!(T);
@@ -228,8 +233,7 @@ impl ModelService {
             .response_format(response_format)
             .build()?;
 
-        let client = Client::new();
-        let response = client.chat().create(request).await?;
+        let response = self.client.chat().create(request).await?;
 
         for choice in response.choices {
             if let Some(content) = choice.message.content {

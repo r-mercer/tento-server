@@ -90,6 +90,15 @@ impl QuizService {
     }
 
     pub async fn update_quiz(&self, quiz: Quiz) -> AppResult<Quiz> {
+        let mut quiz = quiz;
+        let now = chrono::Utc::now();
+        if quiz.created_at.is_none() {
+            quiz.created_at = Some(now);
+        }
+        if quiz.modified_at.is_none() {
+            quiz.modified_at = Some(now);
+        }
+
         let updated_quiz = self.repository.update(quiz).await?;
         Ok(updated_quiz)
     }

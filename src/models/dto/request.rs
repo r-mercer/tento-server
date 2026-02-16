@@ -5,6 +5,7 @@ use validator::Validate;
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 
+use crate::errors::{AppError, AppResult};
 use crate::models::domain::quiz::QuizStatus;
 use crate::models::domain::quiz_question::{QuizQuestionOption, QuizQuestionType};
 use crate::models::domain::summary_document::SummaryDocument;
@@ -124,24 +125,26 @@ impl From<QuizQuestion> for QuizQuestionRequestDto {
     }
 }
 
-impl From<QuizQuestionRequestDto> for QuizQuestion {
-    fn from(dto: QuizQuestionRequestDto) -> Self {
-        let options: Vec<QuizQuestionOption> =
-            serde_json::from_str(&dto.options).unwrap_or_default();
+impl TryFrom<QuizQuestionRequestDto> for QuizQuestion {
+    type Error = AppError;
 
-        QuizQuestion {
+    fn try_from(dto: QuizQuestionRequestDto) -> Result<Self, Self::Error> {
+        let options: Vec<QuizQuestionOption> = serde_json::from_str(&dto.options)
+            .map_err(|e| AppError::ValidationError(format!("Invalid options JSON: {}", e)))?;
+
+        Ok(QuizQuestion {
             id: dto.id,
             title: dto.title,
             description: dto.description,
-            question_type: parse_question_type(&dto.question_type),
+            question_type: parse_question_type(&dto.question_type)?,
             options,
-            option_count: parse_i16(&dto.option_count),
-            order: parse_i16(&dto.order),
-            attempt_limit: parse_i16(&dto.attempt_limit),
+            option_count: parse_i16_required(&dto.option_count, "option_count")?,
+            order: parse_i16_required(&dto.order, "order")?,
+            attempt_limit: parse_i16_required(&dto.attempt_limit, "attempt_limit")?,
             topic: dto.topic,
-            created_at: parse_optional_datetime(&dto.created_at),
-            modified_at: parse_optional_datetime(&dto.modified_at),
-        }
+            created_at: parse_optional_datetime(&dto.created_at)?,
+            modified_at: parse_optional_datetime(&dto.modified_at)?,
+        })
     }
 }
 
@@ -177,30 +180,37 @@ impl From<Quiz> for QuizRequestDto {
     }
 }
 
-impl From<QuizRequestDto> for Quiz {
-    fn from(dto: QuizRequestDto) -> Self {
+impl TryFrom<QuizRequestDto> for Quiz {
+    type Error = AppError;
+
+    fn try_from(dto: QuizRequestDto) -> Result<Self, Self::Error> {
         let questions = if dto.questions.is_empty() {
             None
         } else {
-            Some(dto.questions.into_iter().map(QuizQuestion::from).collect())
+            Some(
+                dto.questions
+                    .into_iter()
+                    .map(QuizQuestion::try_from)
+                    .collect::<Result<Vec<_>, AppError>>()?,
+            )
         };
 
-        Quiz {
+        Ok(Quiz {
             id: dto.id,
             name: dto.name,
             created_by_user_id: dto.created_by_user_id,
             title: none_if_empty(dto.title),
             description: none_if_empty(dto.description),
-            question_count: parse_i16(&dto.question_count),
-            required_score: parse_i16(&dto.required_score),
-            attempt_limit: parse_i16(&dto.attempt_limit),
+            question_count: parse_i16_required(&dto.question_count, "question_count")?,
+            required_score: parse_i16_required(&dto.required_score, "required_score")?,
+            attempt_limit: parse_i16_required(&dto.attempt_limit, "attempt_limit")?,
             topic: none_if_empty(dto.topic),
-            status: parse_quiz_status(&dto.status),
+            status: parse_quiz_status(&dto.status)?,
             questions,
             url: dto.url,
-            created_at: parse_optional_datetime(&dto.created_at),
-            modified_at: parse_optional_datetime(&dto.modified_at),
-        }
+            created_at: parse_optional_datetime(&dto.created_at)?,
+            modified_at: parse_optional_datetime(&dto.modified_at)?,
+        })
     }
 }
 
@@ -233,54 +243,72 @@ impl From<SummaryDocument> for SummaryDocumentRequestDto {
     }
 }
 
-impl From<SummaryDocumentRequestDto> for SummaryDocument {
-    fn from(dto: SummaryDocumentRequestDto) -> Self {
-        SummaryDocument {
+impl TryFrom<SummaryDocumentRequestDto> for SummaryDocument {
+    type Error = AppError;
+
+    fn try_from(dto: SummaryDocumentRequestDto) -> Result<Self, Self::Error> {
+        Ok(SummaryDocument {
             id: dto.id,
             quiz_id: dto.quiz_id,
             url: dto.url,
             content: dto.content,
-            created_at: parse_optional_datetime(&dto.created_at),
-            modified_at: parse_optional_datetime(&dto.modified_at),
-        }
+            created_at: parse_optional_datetime(&dto.created_at)?,
+            modified_at: parse_optional_datetime(&dto.modified_at)?,
+        })
     }
 }
 
-fn parse_i16(value: &str) -> i16 {
-    value.trim().parse::<i16>().unwrap_or_default()
-}
-
-fn parse_optional_datetime(value: &str) -> Option<DateTime<Utc>> {
+fn parse_i16_required(value: &str, field: &str) -> AppResult<i16> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return None;
+        return Err(AppError::ValidationError(format!(
+            "{} is required",
+            field
+        )));
+    }
+
+    trimmed
+        .parse::<i16>()
+        .map_err(|e| AppError::ValidationError(format!("Invalid {}: {}", field, e)))
+}
+
+fn parse_optional_datetime(value: &str) -> AppResult<Option<DateTime<Utc>>> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
     }
 
     DateTime::parse_from_rfc3339(trimmed)
-        .ok()
-        .map(|dt| dt.with_timezone(&Utc))
+        .map(|dt| Some(dt.with_timezone(&Utc)))
+        .map_err(|e| AppError::ValidationError(format!("Invalid datetime: {}", e)))
 }
 
 fn none_if_empty(value: String) -> Option<String> {
     Some(value)
 }
 
-fn parse_quiz_status(value: &str) -> QuizStatus {
+fn parse_quiz_status(value: &str) -> AppResult<QuizStatus> {
     match value.trim().to_lowercase().as_str() {
-        "draft" => QuizStatus::Draft,
-        "pending" => QuizStatus::Pending,
-        "ready" => QuizStatus::Ready,
-        "complete" => QuizStatus::Complete,
-        _ => QuizStatus::Draft,
+        "draft" => Ok(QuizStatus::Draft),
+        "pending" => Ok(QuizStatus::Pending),
+        "ready" => Ok(QuizStatus::Ready),
+        "complete" => Ok(QuizStatus::Complete),
+        _ => Err(AppError::ValidationError(format!(
+            "Invalid status: {}",
+            value
+        ))),
     }
 }
 
-fn parse_question_type(value: &str) -> QuizQuestionType {
+fn parse_question_type(value: &str) -> AppResult<QuizQuestionType> {
     match value.trim().to_lowercase().as_str() {
-        "single" => QuizQuestionType::Single,
-        "multi" => QuizQuestionType::Multi,
-        "bool" | "boolean" => QuizQuestionType::Bool,
-        _ => QuizQuestionType::Single,
+        "single" => Ok(QuizQuestionType::Single),
+        "multi" => Ok(QuizQuestionType::Multi),
+        "bool" | "boolean" => Ok(QuizQuestionType::Bool),
+        _ => Err(AppError::ValidationError(format!(
+            "Invalid question_type: {}",
+            value
+        ))),
     }
 }
 
