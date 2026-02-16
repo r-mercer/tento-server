@@ -2,6 +2,8 @@ use async_graphql::InputObject;
 use serde::Deserialize;
 use validator::Validate;
 
+use crate::models::domain::{Quiz, QuizQuestion};
+
 // static USERNAME_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
 //     regex::Regex::new(r"^[a-zA-Z0-9_]+$")
 //         .expect("USERNAME_REGEX is a valid regex pattern")
@@ -57,6 +59,98 @@ pub struct CreateQuizDraftRequest {
 }
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+pub struct QuizRequestDto {
+    pub id: String,
+    pub name: String,
+    pub created_by_user_id: String,
+    pub title: String,
+    pub description: String,
+    pub question_count: String,
+    pub required_score: String,
+    pub attempt_limit: String,
+    pub topic: String,
+    pub status: String,
+    pub questions: Vec<QuizQuestionRequestDto>,
+    pub url: String,
+    pub created_at: String,
+    pub modified_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+pub struct QuizQuestionRequestDto {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub question_type: String,
+    pub options: String,
+    pub option_count: String,
+    pub order: String,
+    pub attempt_limit: String,
+    pub topic: String,
+    pub created_at: String,
+    pub modified_at: String,
+}
+
+impl From<QuizQuestion> for QuizQuestionRequestDto {
+    fn from(question: QuizQuestion) -> Self {
+        let options = serde_json::to_string(&question.options)
+            .unwrap_or_else(|_| "[]".to_string());
+
+        QuizQuestionRequestDto {
+            id: question.id,
+            title: question.title,
+            description: question.description,
+            question_type: format!("{:?}", question.question_type),
+            options,
+            option_count: question.option_count.to_string(),
+            order: question.order.to_string(),
+            attempt_limit: question.attempt_limit.to_string(),
+            topic: question.topic,
+            created_at: question
+                .created_at
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default(),
+            modified_at: question
+                .modified_at
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default(),
+        }
+    }
+}
+
+impl From<Quiz> for QuizRequestDto {
+    fn from(quiz: Quiz) -> Self {
+        QuizRequestDto {
+            id: quiz.id,
+            name: quiz.name,
+            created_by_user_id: quiz.created_by_user_id,
+            title: quiz.title.unwrap_or_default(),
+            description: quiz.description.unwrap_or_default(),
+            question_count: quiz.question_count.to_string(),
+            required_score: quiz.required_score.to_string(),
+            attempt_limit: quiz.attempt_limit.to_string(),
+            topic: quiz.topic.unwrap_or_default(),
+            status: format!("{:?}", quiz.status),
+            questions: quiz
+                .questions
+                .unwrap_or_default()
+                .into_iter()
+                .map(QuizQuestionRequestDto::from)
+                .collect(),
+            url: quiz.url,
+            created_at: quiz
+                .created_at
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default(),
+            modified_at: quiz
+                .modified_at
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
 pub struct ChatCompletionRequest {
     #[validate(length(min = 1, max = 10000))]
     pub prompt: String,
@@ -92,10 +186,6 @@ impl PaginationParams {
         self.limit.unwrap_or(20).min(100)
     }
 }
-
-// ============================================================================
-// Quiz Attempt Input DTOs
-// ============================================================================
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
 pub struct QuestionAnswerInput {
