@@ -2,6 +2,11 @@ use async_graphql::InputObject;
 use serde::Deserialize;
 use validator::Validate;
 
+use chrono::{DateTime, Utc};
+
+use crate::models::domain::quiz::QuizStatus;
+use crate::models::domain::quiz_question::{QuizQuestionOption, QuizQuestionType};
+use crate::models::domain::summary_document::SummaryDocument;
 use crate::models::domain::{Quiz, QuizQuestion};
 
 // static USERNAME_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
@@ -118,6 +123,27 @@ impl From<QuizQuestion> for QuizQuestionRequestDto {
     }
 }
 
+impl From<QuizQuestionRequestDto> for QuizQuestion {
+    fn from(dto: QuizQuestionRequestDto) -> Self {
+        let options: Vec<QuizQuestionOption> =
+            serde_json::from_str(&dto.options).unwrap_or_default();
+
+        QuizQuestion {
+            id: dto.id,
+            title: dto.title,
+            description: dto.description,
+            question_type: parse_question_type(&dto.question_type),
+            options,
+            option_count: parse_i16(&dto.option_count),
+            order: parse_i16(&dto.order),
+            attempt_limit: parse_i16(&dto.attempt_limit),
+            topic: dto.topic,
+            created_at: parse_optional_datetime(&dto.created_at),
+            modified_at: parse_optional_datetime(&dto.modified_at),
+        }
+    }
+}
+
 impl From<Quiz> for QuizRequestDto {
     fn from(quiz: Quiz) -> Self {
         QuizRequestDto {
@@ -147,6 +173,118 @@ impl From<Quiz> for QuizRequestDto {
                 .map(|dt| dt.to_rfc3339())
                 .unwrap_or_default(),
         }
+    }
+}
+
+impl From<QuizRequestDto> for Quiz {
+    fn from(dto: QuizRequestDto) -> Self {
+        let questions = if dto.questions.is_empty() {
+            None
+        } else {
+            Some(dto.questions.into_iter().map(QuizQuestion::from).collect())
+        };
+
+        Quiz {
+            id: dto.id,
+            name: dto.name,
+            created_by_user_id: dto.created_by_user_id,
+            title: none_if_empty(dto.title),
+            description: none_if_empty(dto.description),
+            question_count: parse_i16(&dto.question_count),
+            required_score: parse_i16(&dto.required_score),
+            attempt_limit: parse_i16(&dto.attempt_limit),
+            topic: none_if_empty(dto.topic),
+            status: parse_quiz_status(&dto.status),
+            questions,
+            url: dto.url,
+            created_at: parse_optional_datetime(&dto.created_at),
+            modified_at: parse_optional_datetime(&dto.modified_at),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+pub struct SummaryDocumentRequestDto {
+    pub id: String,
+    pub quiz_id: String,
+    pub url: String,
+    pub content: String,
+    pub created_at: String,
+    pub modified_at: String,
+}
+
+impl From<SummaryDocument> for SummaryDocumentRequestDto {
+    fn from(summary_document: SummaryDocument) -> Self {
+        SummaryDocumentRequestDto {
+            id: summary_document.id,
+            quiz_id: summary_document.quiz_id,
+            url: summary_document.url,
+            content: summary_document.content,
+            created_at: summary_document
+                .created_at
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default(),
+            modified_at: summary_document
+                .modified_at
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default(),
+        }
+    }
+}
+
+impl From<SummaryDocumentRequestDto> for SummaryDocument {
+    fn from(dto: SummaryDocumentRequestDto) -> Self {
+        SummaryDocument {
+            id: dto.id,
+            quiz_id: dto.quiz_id,
+            url: dto.url,
+            content: dto.content,
+            created_at: parse_optional_datetime(&dto.created_at),
+            modified_at: parse_optional_datetime(&dto.modified_at),
+        }
+    }
+}
+
+fn parse_i16(value: &str) -> i16 {
+    value.trim().parse::<i16>().unwrap_or_default()
+}
+
+fn parse_optional_datetime(value: &str) -> Option<DateTime<Utc>> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    DateTime::parse_from_rfc3339(trimmed)
+        .ok()
+        .map(|dt| dt.with_timezone(&Utc))
+}
+
+fn none_if_empty(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn parse_quiz_status(value: &str) -> QuizStatus {
+    match value.trim().to_lowercase().as_str() {
+        "draft" => QuizStatus::Draft,
+        "pending" => QuizStatus::Pending,
+        "ready" => QuizStatus::Ready,
+        "complete" => QuizStatus::Complete,
+        _ => QuizStatus::Draft,
+    }
+}
+
+fn parse_question_type(value: &str) -> QuizQuestionType {
+    match value.trim().to_lowercase().as_str() {
+        "single" => QuizQuestionType::Single,
+        "multi" => QuizQuestionType::Multi,
+        "bool" | "boolean" => QuizQuestionType::Bool,
+        _ => QuizQuestionType::Single,
     }
 }
 
