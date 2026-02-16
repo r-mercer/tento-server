@@ -4,7 +4,9 @@ use crate::{
     models::dto::request::{QuizRequestDto, SummaryDocumentRequestDto},
     services::agent_orchestrator_service::{AgentJob, JobStep},
 };
+use chrono::Utc;
 use serde_json::json;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JobStepType {
@@ -99,14 +101,27 @@ impl StepHandler {
             .await
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
 
-        match app_state.model_service.website_summariser(&quiz.url).await {
-            Ok(summary) => {
+        match app_state
+            .model_service
+            .structured_summary_document(&quiz.url)
+            .await
+        {
+            Ok(summary_dto) => {
                 log::info!(
                     "Successfully created summary document for job {}",
                     job.job_id
                 );
 
-                let new_doc = SummaryDocument::new_summary_document(&quiz.url, &quiz.id, &summary);
+                let now = Utc::now().to_rfc3339();
+                let summary_request = SummaryDocumentRequestDto {
+                    id: Uuid::new_v4().to_string(),
+                    quiz_id: quiz.id.clone(),
+                    url: quiz.url.clone(),
+                    content: summary_dto.content,
+                    created_at: now.clone(),
+                    modified_at: now,
+                };
+                let new_doc: SummaryDocument = summary_request.into();
                 app_state
                     .summary_document_service
                     .create_summary_document(new_doc.clone())

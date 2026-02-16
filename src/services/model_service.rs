@@ -172,6 +172,27 @@ impl ModelService {
         // Ok(response)
     }
 
+    pub async fn structured_summary_document(
+        &self,
+        url_string: &str,
+    ) -> AppResult<SummaryDocumentRequestDto> {
+        match Self::structured_output::<SummaryDocumentRequestDto>(vec![
+            ChatCompletionRequestSystemMessage::from(WEBSITE_SUMMARISER_PROMPT).into(),
+            ChatCompletionRequestUserMessage::from(url_string).into(),
+        ])
+        .await
+        {
+            Ok(Some(summary_document)) => Ok(summary_document),
+            Ok(None) => Err(AppError::InternalError(
+                "LLM did not return a valid summary document".to_string(),
+            )),
+            Err(e) => Err(AppError::InternalError(format!(
+                "Failed to generate structured summary document: {}",
+                e
+            ))),
+        }
+    }
+
     pub async fn structured_output<T: serde::Serialize + DeserializeOwned + JsonSchema>(
         messages: Vec<ChatCompletionRequestMessage>,
     ) -> Result<Option<T>, Box<dyn Error>> {
