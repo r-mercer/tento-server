@@ -1,5 +1,5 @@
 use async_graphql::InputObject;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use chrono::{DateTime, Utc};
@@ -65,7 +65,7 @@ pub struct CreateQuizDraftRequest {
     pub url: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate, InputObject, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
 pub struct QuizRequestDto {
     pub id: String,
     pub name: String,
@@ -83,7 +83,7 @@ pub struct QuizRequestDto {
     pub modified_at: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate, InputObject, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
 pub struct QuizQuestionRequestDto {
     pub id: String,
     pub title: String,
@@ -214,7 +214,7 @@ impl TryFrom<QuizRequestDto> for Quiz {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Validate, InputObject, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
 pub struct SummaryDocumentRequestDto {
     pub id: String,
     pub quiz_id: String,
