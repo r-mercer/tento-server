@@ -56,12 +56,13 @@ impl QuizService {
     pub async fn create_quiz_draft(
         &self,
         request: QuizDraftDto,
+        user_id: &str,
     ) -> AppResult<CreateQuizDraftResponse> {
         request.validate()?;
 
         let quiz = Quiz::new_draft(
             &request.name,
-            &request.user_id,
+            user_id,
             request.question_count,
             request.required_score,
             request.attempt_limit,

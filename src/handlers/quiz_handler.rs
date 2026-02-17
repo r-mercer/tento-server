@@ -21,11 +21,11 @@ async fn get_quiz(
 async fn create_quiz_draft(
     state: web::Data<Arc<AppState>>,
     request: web::Json<QuizDraftDto>,
-    _auth: AuthenticatedUser,
+    auth: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
     let response = state
         .quiz_service
-        .create_quiz_draft(request.into_inner())
+        .create_quiz_draft(request.into_inner(), &auth.0.sub)
         .await?;
     Ok(HttpResponse::Created().json(response))
 }

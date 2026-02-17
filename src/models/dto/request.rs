@@ -43,8 +43,6 @@ pub struct QuizDraftDto {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
 
-    pub user_id: String,
-
     // #[validate(required)]
     pub question_count: i16,
     //
@@ -61,7 +59,6 @@ impl QuizDraftDto {
     pub(crate) fn from_quiz(quiz: crate::models::domain::Quiz) -> QuizDraftDto {
         QuizDraftDto {
             name: quiz.name,
-            user_id: quiz.created_by_user_id,
             question_count: quiz.question_count,
             required_score: quiz.required_score,
             attempt_limit: quiz.attempt_limit,
