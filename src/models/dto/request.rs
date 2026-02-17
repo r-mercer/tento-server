@@ -12,7 +12,7 @@ use crate::models::domain::summary_document::SummaryDocument;
 use crate::models::domain::{Quiz, QuizQuestion};
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
-pub struct CreateUserRequest {
+pub struct CreateUserRequestDto {
     #[validate(length(min = 1, max = 100))]
     pub first_name: String,
 
@@ -27,7 +27,7 @@ pub struct CreateUserRequest {
 }
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
-pub struct UpdateUserRequest {
+pub struct UpdateUserRequestDto {
     #[validate(length(min = 1, max = 100))]
     pub first_name: Option<String>,
 
@@ -39,7 +39,7 @@ pub struct UpdateUserRequest {
 }
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
-pub struct CreateQuizDraftRequest {
+pub struct CreateQuizDraftRequestDto {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
 
@@ -57,15 +57,15 @@ pub struct CreateQuizDraftRequest {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
-pub struct GenerateQuizRequestDto {
+pub struct QuizRequestDto {
     pub title: String,
     pub description: String,
     pub topic: String,
-    pub questions: Vec<GenerateQuizQuestionRequestDto>,
+    pub questions: Vec<QuizQuestionRequestDto>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
-pub struct GenerateQuizQuestionRequestDto {
+pub struct QuizQuestionRequestDto {
     pub title: String,
     pub description: String,
     pub question_type: String,
@@ -74,43 +74,10 @@ pub struct GenerateQuizQuestionRequestDto {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
-pub struct GenerateQuizQuestionOptionRequestDto {
+pub struct QuizQuestionOptionRequestDto {
     pub text: String,        // text to display
     pub correct: String,     // bool
     pub explanation: String, // explanation for why this option is correct or incorrect
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
-pub struct QuizRequestDto {
-    pub id: String,
-    pub name: String,
-    pub created_by_user_id: String,
-    pub title: String,
-    pub description: String,
-    pub question_count: String,
-    pub required_score: String,
-    pub attempt_limit: String,
-    pub topic: String,
-    pub status: String,
-    pub questions: Vec<QuizQuestionRequestDto>,
-    pub url: String,
-    pub created_at: String,
-    pub modified_at: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
-pub struct QuizQuestionRequestDto {
-    pub id: String,
-    pub title: String,
-    pub description: String,
-    pub question_type: String,
-    pub options: String,
-    pub option_count: String,
-    pub order: String,
-    pub attempt_limit: String,
-    pub topic: String,
-    pub created_at: String,
-    pub modified_at: String,
 }
 
 impl From<QuizQuestion> for QuizQuestionRequestDto {

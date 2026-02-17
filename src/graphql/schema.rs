@@ -160,10 +160,12 @@ impl QueryRoot {
         // Authorization: User must own the attempt
         can_view_quiz_attempt(&user_id, &attempt.user_id)?;
 
-        let quiz = state
+        let quiz_dto = state
             .quiz_service
             .get_quiz(&attempt.quiz_id)
             .await?;
+
+        let quiz: Quiz = quiz_dto.try_into()?;
 
         // Build question results
         let question_results = attempt
@@ -266,7 +268,8 @@ impl MutationRoot {
         let quiz_id = parse_id(&input.quiz_id)?;
 
         // Fetch quiz
-        let quiz = state.quiz_service.get_quiz(&quiz_id).await?;
+        let quiz_dto = state.quiz_service.get_quiz(&quiz_id).await?;
+        let quiz: Quiz = quiz_dto.try_into()?;
 
         // Check attempt limit
         let attempt_count = state

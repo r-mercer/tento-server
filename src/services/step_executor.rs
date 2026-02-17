@@ -97,11 +97,15 @@ impl StepHandler {
             .ok_or_else(|| "Invalid or missing quiz_id in job results".to_string())?
             .to_string();
 
-        let quiz: Quiz = app_state
+        let quiz_dto = app_state
             .quiz_service
             .get_quiz(&quiz_id)
             .await
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
+
+        let quiz: Quiz = quiz_dto
+            .try_into()
+            .map_err(|e| format!("Failed to parse quiz: {}", e))?;
 
         match app_state.model_service.website_summariser(&quiz.url).await {
             Ok(summary_dto) => {
@@ -157,11 +161,15 @@ impl StepHandler {
             .ok_or_else(|| "Invalid or missing summary_id in job results".to_string())?
             .to_string();
 
-        let quiz = app_state
+        let quiz_dto = app_state
             .quiz_service
             .get_quiz(&quiz_id)
             .await
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
+
+        let quiz: Quiz = quiz_dto
+            .try_into()
+            .map_err(|e| format!("Failed to parse quiz: {}", e))?;
 
         let summary_document = app_state
             .summary_document_service
@@ -217,11 +225,15 @@ impl StepHandler {
         let generate_quiz_request_dto: GenerateQuizRequestDto = serde_json::from_str(&response)
             .map_err(|e| format!("Failed to parse quiz from job results: {}", e))?;
 
-        let mut quiz = app_state
+        let quiz_dto = app_state
             .quiz_service
             .get_quiz(&quiz_id)
             .await
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
+
+        let mut quiz: Quiz = quiz_dto
+            .try_into()
+            .map_err(|e| format!("Failed to parse quiz: {}", e))?;
 
         let mut new_quiz_dto = QuizRequestDto::from(quiz.clone());
 
@@ -260,9 +272,10 @@ impl StepHandler {
         quiz.title = new_quiz.title;
         quiz.description = new_quiz.description;
 
+        let updated_quiz = crate::models::dto::quiz_dto::QuizDto::from(quiz);
         app_state
             .quiz_service
-            .update_quiz(quiz)
+            .update_quiz(updated_quiz)
             .await
             .map_err(|e| format!("Failed to update quiz: {}", e))?;
 
