@@ -1,10 +1,15 @@
 use crate::{
     app_state::AppState,
     models::{
-        domain::{quiz_question::QuizQuestionOption, summary_document::SummaryDocument, Quiz},
-        dto::request::{
-            GenerateQuizRequestDto, QuizQuestionRequestDto, QuizRequestDto,
-            SummaryDocumentRequestDto,
+        domain::{
+            quiz::QuizStatus,
+            quiz_question::{QuizQuestionOption, QuizQuestionType},
+            summary_document::SummaryDocument,
+            Quiz,
+        },
+        dto::{
+            quiz_dto::QuizQuestionDto,
+            request::{GenerateQuizRequestDto, QuizRequestDto, SummaryDocumentRequestDto},
         },
     },
     services::agent_orchestrator_service::{AgentJob, JobStep},
@@ -170,17 +175,12 @@ impl StepHandler {
             .await
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
 
-        let quiz: Quiz = quiz_dto
-            .try_into()
-            .map_err(|e| format!("Failed to parse quiz: {}", e))?;
-
         let summary_document = app_state
             .summary_document_service
             .get_summary_document(&summary_id)
             .await
             .map_err(|e| format!("Failed to fetch summary document: {}", e))?;
 
-        let quiz_dto = crate::models::dto::quiz_dto::QuizDto::from(quiz);
         let quiz_request_dto = QuizRequestDto::from(quiz_dto);
         let summary_dto = SummaryDocumentRequestDto::from(summary_document);
 
@@ -217,14 +217,11 @@ impl StepHandler {
             .ok_or_else(|| "Invalid or missing quiz_id in job results".to_string())?
             .to_string();
 
-        // let new_quiz_json = job.results.get("resonse");
         let mut response = String::new();
+
         if let Some(resp) = job.results.get("response").to_owned() {
-            // println!("response: {}", resp.to_string());
             response = resp.to_string();
         }
-
-        // let newval = job.results.get("response").to_owned();
 
         let generate_quiz_request_dto: GenerateQuizRequestDto = serde_json::from_str(&response)
             .map_err(|e| format!("Failed to parse quiz from job results: {}", e))?;
@@ -235,35 +232,16 @@ impl StepHandler {
             .await
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
 
-        let mut quiz: Quiz = quiz_dto
-            .try_into()
-            .map_err(|e| format!("Failed to parse quiz: {}", e))?;
-
-        let quiz_dto = crate::models::dto::quiz_dto::QuizDto::from(quiz.clone());
-        let mut new_quiz_request = QuizRequestDto::from(quiz_dto);
-
-        new_quiz_request.id = quiz.id.clone();
-        new_quiz_request.name = quiz.name.clone();
-        new_quiz_request.created_by_user_id = quiz.created_by_user_id.clone();
-        new_quiz_request.question_count = quiz.question_count.to_string();
-        new_quiz_request.required_score = quiz.required_score.to_string();
-        new_quiz_request.attempt_limit = quiz.attempt_limit.to_string();
-        new_quiz_request.status = format!("{:?}", quiz.status).to_lowercase();
-        new_quiz_request.url = quiz.url.clone();
-        new_quiz_request.created_at = quiz
-            .created_at
-            .map(|dt| dt.to_rfc3339())
-            .unwrap_or_default();
-        new_quiz_request.modified_at = quiz
-            .modified_at
-            .map(|dt| dt.to_rfc3339())
-            .unwrap_or_default();
-
-        let now = Utc::now().to_rfc3339();
-        let generated_questions: Vec<QuizQuestionRequestDto> = generate_quiz_request_dto
+        let generated_questions: Vec<QuizQuestionDto> = generate_quiz_request_dto
             .questions
             .into_iter()
             .map(|question| {
+                let question_type = match question.question_type.to_lowercase().as_str() {
+                    "single" => QuizQuestionType::Single,
+                    "multi" => QuizQuestionType::Multi,
+                    "bool" | "boolean" => QuizQuestionType::Bool,
+                    _ => QuizQuestionType::Single,
+                };
                 let options: Vec<QuizQuestionOption> = question
                     .options
                     .into_iter()
@@ -275,50 +253,36 @@ impl StepHandler {
                     })
                     .collect();
                 let option_count = options.len() as i16;
-                let options_json =
-                    serde_json::to_string(&options).unwrap_or_else(|_| "[]".to_string());
+                let order = question.order.parse::<i16>().unwrap_or(0);
+                let now = Utc::now();
 
-                QuizQuestionRequestDto {
+                QuizQuestionDto {
                     id: Uuid::new_v4().to_string(),
                     title: question.title,
                     description: question.description,
-                    question_type: question.question_type,
-                    options: options_json,
-                    option_count: option_count.to_string(),
-                    order: question.order,
-                    attempt_limit: quiz.attempt_limit.to_string(),
-                    topic: quiz.topic.clone().unwrap_or_default(),
-                    created_at: now.clone(),
-                    modified_at: now.clone(),
+                    question_type,
+                    options,
+                    option_count,
+                    order,
+                    attempt_limit: quiz_dto.attempt_limit,
+                    topic: quiz_dto.topic.clone(),
+                    created_at: now,
+                    modified_at: now,
                 }
             })
             .collect();
 
-        new_quiz_request.questions = generated_questions;
+        let mut quiz_dto = quiz_dto;
+        quiz_dto.questions = generated_questions;
+        quiz_dto.title = generate_quiz_request_dto.title;
+        quiz_dto.description = generate_quiz_request_dto.description;
+        quiz_dto.topic = generate_quiz_request_dto.topic;
+        quiz_dto.status = QuizStatus::Ready;
+        quiz_dto.modified_at = Utc::now();
 
-        // for question in &mut generate_quiz_request_dto.questions {
-        //     if question.attempt_limit.trim().is_empty() {
-        //         question.attempt_limit = quiz.attempt_limit.to_string();
-        //     }
-        // }
-
-        let new_quiz_dto: crate::models::dto::quiz_dto::QuizDto = new_quiz_request
-            .try_into()
-            .map_err(|e| format!("Failed to validate quiz from job results: {}", e))?;
-        let new_quiz: Quiz = new_quiz_dto
-            .try_into()
-            .map_err(|e| format!("Failed to parse quiz: {}", e))?;
-
-        quiz.status = crate::models::domain::quiz::QuizStatus::Ready;
-        quiz.modified_at = Some(chrono::Utc::now());
-        quiz.questions = new_quiz.questions;
-        quiz.title = new_quiz.title;
-        quiz.description = new_quiz.description;
-
-        let updated_quiz = crate::models::dto::quiz_dto::QuizDto::from(quiz);
         app_state
             .quiz_service
-            .update_quiz(updated_quiz)
+            .update_quiz(quiz_dto)
             .await
             .map_err(|e| format!("Failed to update quiz: {}", e))?;
 
