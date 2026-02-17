@@ -29,16 +29,16 @@ pub const URL_EXTRACTION_PROMPT: &str = "You are an advanced website content ext
 ### Output Specifications:
 
 Output should be optimised for llm processing. Ahere to the following structure:
-- Quiz Title: The main topic or title of the content.
-- Quiz Description: A concise summary of the content's main point.
-- Quiz Topic: A succinct keyword or phrase capturing the essence of the content.
-- Quiz Questions: An array of quiz questions, each with a title, description, and options for answers. Quiz Question structure should follow this format (repeat for each question):
-    - Q1 Title: A clear, concise question title.
-    - Q1 Description: Additional context or explanation for the question.
-    - Q1 Options: An array of answer options, each containing (repeat for each option):
-         - Q1O1 Text: The answer text, clearly distinct from other options.
-         - Q1O1 Correct: A boolean indicating if this is the correct answer.
-         - Q1O1 Explanation: A brief explanation of why this answer is correct or incorrect, based on the source material.
+- Quiz-Title: The main topic or title of the content.
+- Quiz-Description: A concise summary of the content's main point.
+- Quiz-Topic: A succinct keyword or phrase capturing the essence of the content.
+- Quiz-Questions: An array of quiz questions, each with a title, description, and options for answers. Each question field should indicate which question it belongs to by prefixing Question number to each field. This should increment each time. For example: 
+    - Question1-Title: A clear, concise question title.
+    - Question1-Description: Additional context or explanation for the question.
+    - Question1-Options: An array of answer options, each containing the following fields. Each option should indicate which option and question it belongs to, increementing with each question and option. For example:
+         - Question1:Option1-Text: The answer text, clearly distinct from other options.
+         - Question1:Option1-Correct: A boolean indicating if this is the correct answer.
+         - Question1:Option1-Explanation: A brief explanation of why this answer is correct or incorrect, based on the source material.
 
 ### Accuracy and Validation:
 
@@ -80,22 +80,26 @@ Generate a complete quiz with questions that:
 
 You will receive:
 
-1. Summary content: The authoritative source material from which to create structured output. Will be largely unstructured text, however should contain all of the required information to proceed.
+1. Summary content: The authoritative source material from which to create structured output. You should expect the summary content to follow the following structure:
 
-You should expect the summary content to follow the following structure:
-
-- Quiz Title: The main topic or title of the content.
-- Quiz Description: A concise summary of the content's main point.
-- Quiz Topic: A succinct keyword or phrase capturing the essence of the content.
-- Quiz Questions: An array of quiz questions, each with a title, description, and options for answers. Quiz Question structure should follow this format (repeated for each question):
-    - Q1 Title: A clear, concise question title.
-    - Q1 Description: Additional context or explanation for the question.
-    - Q1 Options: An array of answer options, each containing (repeated for each option):
-         - Q1O1 Text: The answer text, clearly distinct from other options.
-         - Q1O1 Correct: A boolean indicating if this is the correct answer.
-         - Q1O1 Explanation: A brief explanation of why this answer is correct or incorrect, based on the source material.
+- Quiz-Title: The main topic or title of the content.
+- Quiz-Description: A concise summary of the content's main point.
+- Quiz-Topic: A succinct keyword or phrase capturing the essence of the content.
+- Quiz-Questions: An array of quiz questions, each with a title, description, and options for answers. Each question field should indicate which question it belongs to by prefixing Question number to each field. This should increment each time. For example: 
+    - Question1-Title: A clear, concise question title.
+    - Question1-Description: Additional context or explanation for the question.
+    - Question1-Options: An array of answer options, each containing the following fields. Each option should indicate which option and question it belongs to, increementing with each question and option. For example:
+         - Question1:Option1-Text: The answer text, clearly distinct from other options.
+         - Question1:Option1-Correct: A boolean indicating if this is the correct answer.
+         - Question1:Option1-Explanation: A brief explanation of why this answer is correct or incorrect, based on the source material.
 
 The summary contains all necessary information to return structured output. Do not make any inferences or attempt to use tools. Use only what has been provided.
+
+Each incrementing field should be treated as a unique question or answer option. For example, Question1-Title and Question2-Title should be treated as two distinct questions, and Question1:Option1-Text and Question1:Option2-Text should be treated as two distinct answer options for the same question.
+
+You must create a new member of the quiz questions array for each unique question, and a new member of the question options array for each unique answer option.
+
+2. Structured Output Specifications: A detailed schema outlining the required structure and fields for the quiz output, including arrays that must be populated with questions and question answers.
 
 ## OUTPUT SPECIFICATION
 
@@ -103,20 +107,20 @@ The summary contains all necessary information to return structured output. Do n
 The top level fields are the main quiz metadata fields, including title, description topic and an array of quiz questions. Each quiz question is composed of a title, description, and an array of quiz question options. Each quiz question option should contain text, detailing the answer to display, a field to indicate if the answer is correct and then an explanation as to why that answer is correct or incorrect.
 
 ### Quiz fields
-- title: string, title of the quiz
-- description: string, should be available from provided summary
-- topic: string should be available from provided summary
-- questions: array Quiz Question objects, detailed below
+- quiz_title: string, title of the quiz
+- quiz_description: string, should be available from provided summary
+- quiz_topic: string should be available from provided summary
+- quiz_questions: array Quiz Question objects, detailed below
 
 ### Quiz Question fields
-- title: string, a short title of the question - clear, unambiguous
-- description: string additional context or explanation, optional
-- options: array of Quiz Question Options, detailed below
+- question_title: string, a short title of the question - clear, unambiguous
+- question_description: string additional context or explanation, optional
+- question_options: array of Quiz Question Options, detailed below
 
 ### Quiz Question Option fields
-- text: string, the answer to the question - clear and distinct from other options)
-- correct: string, “true” if this is a correct answer, “false” otherwise
-- explanation: string, explanation of why this is correct or incorrect, based on the source material
+- option_text: string, the answer to the question - clear and distinct from other options)
+- option_correct: string, “true” if this is a correct answer, “false” otherwise
+- option_explanation: string, explanation of why this is correct or incorrect, based on the source material
 
 ## OUTPUT INSTRUCTIONS
 

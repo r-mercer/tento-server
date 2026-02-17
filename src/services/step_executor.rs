@@ -233,7 +233,7 @@ impl StepHandler {
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
 
         let generated_questions: Vec<QuizQuestionDto> = generate_quiz_request_dto
-            .questions
+            .quiz_questions
             .into_iter()
             .map(|question| {
                 let question_type = match question.question_type.to_lowercase().as_str() {
@@ -243,27 +243,26 @@ impl StepHandler {
                     _ => QuizQuestionType::Single,
                 };
                 let options: Vec<QuizQuestionOption> = question
-                    .options
+                    .question_options
                     .into_iter()
                     .map(|option| QuizQuestionOption {
                         id: Uuid::new_v4().to_string(),
-                        text: option.text,
-                        correct: option.correct.trim().eq_ignore_ascii_case("true"),
-                        explanation: option.explanation,
+                        text: option.option_text,
+                        correct: option.option_correct.trim().eq_ignore_ascii_case("true"),
+                        explanation: option.option_explanation,
                     })
                     .collect();
                 let option_count = options.len() as i16;
-                let order = question.order.parse::<i16>().unwrap_or(0);
                 let now = Utc::now();
 
                 QuizQuestionDto {
                     id: Uuid::new_v4().to_string(),
-                    title: question.title,
-                    description: question.description,
+                    title: question.question_title,
+                    description: question.question_description,
                     question_type,
                     options,
                     option_count,
-                    order,
+                    order: 0,
                     attempt_limit: quiz_dto.attempt_limit,
                     topic: quiz_dto.topic.clone(),
                     created_at: now,
@@ -274,9 +273,9 @@ impl StepHandler {
 
         let mut quiz_dto = quiz_dto;
         quiz_dto.questions = generated_questions;
-        quiz_dto.title = generate_quiz_request_dto.title;
-        quiz_dto.description = generate_quiz_request_dto.description;
-        quiz_dto.topic = generate_quiz_request_dto.topic;
+        quiz_dto.title = generate_quiz_request_dto.quiz_title;
+        quiz_dto.description = generate_quiz_request_dto.quiz_description;
+        quiz_dto.topic = generate_quiz_request_dto.quiz_topic;
         quiz_dto.status = QuizStatus::Ready;
         quiz_dto.modified_at = Utc::now();
 

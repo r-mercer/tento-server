@@ -69,26 +69,25 @@ impl QuizDraftDto {
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
 pub struct GenerateQuizRequestDto {
-    pub title: String,
-    pub description: String,
-    pub topic: String,
-    pub questions: Vec<GenerateQuizQuestionRequestDto>,
+    pub quiz_title: String,
+    pub quiz_description: String,
+    pub quiz_topic: String,
+    pub quiz_questions: Vec<GenerateQuizQuestionRequestDto>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
 pub struct GenerateQuizQuestionRequestDto {
-    pub title: String,
-    pub description: String,
+    pub question_title: String,
+    pub question_description: String,
     pub question_type: String,
-    pub options: Vec<GenerateQuizQuestionOptionRequestDto>,
-    pub order: String,
+    pub question_options: Vec<GenerateQuizQuestionOptionRequestDto>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
 pub struct GenerateQuizQuestionOptionRequestDto {
-    pub text: String,        // text to display
-    pub correct: String,     // bool
-    pub explanation: String, // explanation for why this option is correct or incorrect
+    pub option_text: String,        // text to display
+    pub option_correct: String,     // bool
+    pub option_explanation: String, // explanation for why this option is correct or incorrect
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
