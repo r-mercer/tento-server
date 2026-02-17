@@ -101,11 +101,7 @@ impl StepHandler {
             .await
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
 
-        match app_state
-            .model_service
-            .structured_summary_document(&quiz.url)
-            .await
-        {
+        match app_state.model_service.website_summariser(&quiz.url).await {
             Ok(summary_dto) => {
                 log::info!(
                     "Successfully created summary document for job {}",

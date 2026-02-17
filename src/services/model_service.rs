@@ -6,9 +6,9 @@ use async_openai::{
         ChatCompletionMessageToolCalls, ChatCompletionRequestAssistantMessage,
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
         ChatCompletionRequestToolMessage, ChatCompletionRequestUserMessage,
-        ChatCompletionRequestUserMessageArgs, ChatCompletionTool,
-        ChatCompletionToolChoiceOption, ChatCompletionTools, CreateChatCompletionRequestArgs,
-        FunctionCall, FunctionObject, ResponseFormat, ResponseFormatJsonSchema, ToolChoiceOptions,
+        ChatCompletionRequestUserMessageArgs, ChatCompletionTool, ChatCompletionToolChoiceOption,
+        ChatCompletionTools, CreateChatCompletionRequestArgs, FunctionCall, FunctionObject,
+        ResponseFormat, ResponseFormatJsonSchema, ToolChoiceOptions,
     },
     Client,
 };
@@ -20,7 +20,11 @@ use serde_json::{json, Value};
 
 use crate::{
     config::Config,
-    constants::{prompts::QUIZ_GENERATOR_PROMPT, WEBSITE_SUMMARISER_PROMPT},
+    constants::{
+        prompts::QUIZ_GENERATOR_PROMPT,
+        quiz_prompt::{STRUCTURED_QUIZ_GENERATOR_PROMPT, URL_EXTRACTION_PROMPT},
+        WEBSITE_SUMMARISER_PROMPT,
+    },
     errors::{AppError, AppResult},
     models::dto::request::{QuizRequestDto, SummaryDocumentRequestDto},
 };
@@ -92,7 +96,7 @@ impl ModelService {
                 "messages": [
                     {
                         "role": "system",
-                        "content": WEBSITE_SUMMARISER_PROMPT
+                        "content": URL_EXTRACTION_PROMPT
                     },
                     {
                         "role": "user",
@@ -171,7 +175,7 @@ impl ModelService {
                     "Tool calls are disabled for structured output. Do not call tools.",
                 )
                 .into(),
-                ChatCompletionRequestSystemMessage::from(QUIZ_GENERATOR_PROMPT).into(),
+                ChatCompletionRequestSystemMessage::from(STRUCTURED_QUIZ_GENERATOR_PROMPT).into(),
                 ChatCompletionRequestUserMessage::from(quiz_json).into(),
                 ChatCompletionRequestUserMessage::from(summary_document.content).into(),
             ])
@@ -225,20 +229,20 @@ impl ModelService {
     ) -> Result<Option<T>, Box<dyn Error>> {
         let schema = schema_for!(T);
         let mut schema_value = serde_json::to_value(&schema)?;
-        
+
         // Inline all $defs to avoid $ref issues with LM Studio's outlines processor
         let defs = if let Some(obj) = schema_value.get("$defs") {
             obj.clone()
         } else {
             Value::Object(Default::default())
         };
-        
+
         Self::inline_schema_refs(&mut schema_value, &defs);
-        
+
         if let Some(obj) = schema_value.as_object_mut() {
             obj.remove("$defs");
         }
-        
+
         let response_format = ResponseFormat::JsonSchema {
             json_schema: ResponseFormatJsonSchema {
                 description: None,
@@ -311,7 +315,9 @@ impl ModelService {
                 .messages(messages.clone())
                 .response_format(response_format)
                 .tools(tools.clone())
-                .tool_choice(ChatCompletionToolChoiceOption::Mode(ToolChoiceOptions::Auto))
+                .tool_choice(ChatCompletionToolChoiceOption::Mode(
+                    ToolChoiceOptions::Auto,
+                ))
                 .build()?;
 
             let response = self.client.chat().create(request).await?;
@@ -363,7 +369,7 @@ impl ModelService {
             return Ok(None);
         }
     }
-    
+
     fn inline_schema_refs(schema: &mut Value, defs: &Value) {
         match schema {
             Value::Object(obj) => {
@@ -384,7 +390,7 @@ impl ModelService {
                         }
                     }
                 }
-                
+
                 // Recursively process all values
                 for (_, v) in obj.iter_mut() {
                     Self::inline_schema_refs(v, defs);
@@ -419,7 +425,9 @@ impl ModelService {
             strict: Some(true),
         };
 
-        Ok(ChatCompletionTools::Function(ChatCompletionTool { function }))
+        Ok(ChatCompletionTools::Function(ChatCompletionTool {
+            function,
+        }))
     }
 
     fn build_open_simple_browser_tool() -> AppResult<ChatCompletionTools> {
@@ -434,20 +442,18 @@ impl ModelService {
         let function = FunctionObject {
             name: "open_simple_browser".to_string(),
             description: Some(
-                "Preview a URL and return a short, plain-text snapshot of the page"
-                    .to_string(),
+                "Preview a URL and return a short, plain-text snapshot of the page".to_string(),
             ),
             parameters: Some(parameters),
             strict: Some(true),
         };
 
-        Ok(ChatCompletionTools::Function(ChatCompletionTool { function }))
+        Ok(ChatCompletionTools::Function(ChatCompletionTool {
+            function,
+        }))
     }
 
-    async fn execute_tool_call(
-        &self,
-        function: &FunctionCall,
-    ) -> Result<String, Box<dyn Error>> {
+    async fn execute_tool_call(&self, function: &FunctionCall) -> Result<String, Box<dyn Error>> {
         match function.name.as_str() {
             "fetch_webpage" => {
                 let args: FetchWebpageArgs = serde_json::from_str(&function.arguments)?;
@@ -494,8 +500,7 @@ impl ModelService {
         if !status.is_success() {
             return Ok(format!(
                 "Failed to fetch URL. Status: {}. Body (truncated): {}",
-                status,
-                body
+                status, body
             ));
         }
 
