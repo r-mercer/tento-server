@@ -99,8 +99,6 @@ The summary contains all necessary information to return structured output. Do n
 
 ## OUTPUT SPECIFICATION
 
-Full json schema of the output specification has been provided. However, further commentary on the fields and expectations has been provided below.
-
 ### General Structure
 The top level fields are the main quiz metadata fields, including title, description topic and an array of quiz questions. Each quiz question is composed of a title, description, and an array of quiz question options. Each quiz question option should contain text, detailing the answer to display, a field to indicate if the answer is correct and then an explanation as to why that answer is correct or incorrect.
 
@@ -122,10 +120,6 @@ The top level fields are the main quiz metadata fields, including title, descrip
 
 ## OUTPUT INSTRUCTIONS
 
-Return ONLY the required structured output. Do not include:
-- Explanatory text before or after the JSON
-- Markdown code blocks or formatting
-- Any commentary or additional content
-- Multiple JSON objects or arrays
+You MUST ensure that ALL Questions and ALL Question Options are included in the output. Each question should have at least 2 (up to 4) options, with at least 1 correct answer. 
 
-The response must be a single, valid JSON object that can be immediately parsed."#;
+The output should be in strict adherence to the provided schema and should not include any additional fields or commentary. The output should be a valid JSON object that can be parsed without errors."#;

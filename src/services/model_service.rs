@@ -33,9 +33,9 @@ pub struct ModelService {
     client: Client<OpenAIConfig>,
 }
 
-const TOOL_MAX_ATTEMPTS: u32 = 6;
+const TOOL_MAX_ATTEMPTS: u32 = 12;
 const TOOL_MAX_CONTENT_LENGTH: usize = 20000;
-const STRUCTURED_OUTPUT_MAX_TOKENS: u32 = 4096;
+const STRUCTURED_OUTPUT_MAX_TOKENS: u32 = 12288;
 
 #[derive(Debug, Deserialize)]
 struct FetchWebpageArgs {
@@ -242,7 +242,7 @@ impl ModelService {
         let response_format = ResponseFormat::JsonSchema {
             json_schema: ResponseFormatJsonSchema {
                 description: None,
-                name: "math_reasoning".into(),
+                name: "reasoning".into(),
                 schema: Some(schema_value),
                 strict: Some(true),
             },
