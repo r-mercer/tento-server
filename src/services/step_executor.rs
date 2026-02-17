@@ -1,7 +1,9 @@
 use crate::{
     app_state::AppState,
-    models::domain::{summary_document::SummaryDocument, Quiz},
-    models::dto::request::{QuizRequestDto, SummaryDocumentRequestDto},
+    models::{
+        domain::{summary_document::SummaryDocument, Quiz},
+        dto::request::{GenerateQuizRequestDto, QuizRequestDto, SummaryDocumentRequestDto},
+    },
     services::agent_orchestrator_service::{AgentJob, JobStep},
 };
 use chrono::Utc;
@@ -212,7 +214,7 @@ impl StepHandler {
 
         // let newval = job.results.get("response").to_owned();
 
-        let new_quiz_dto: QuizRequestDto = serde_json::from_str(&response)
+        let generate_quiz_request_dto: GenerateQuizRequestDto = serde_json::from_str(&response)
             .map_err(|e| format!("Failed to parse quiz from job results: {}", e))?;
 
         let mut quiz = app_state
@@ -221,7 +223,8 @@ impl StepHandler {
             .await
             .map_err(|e| format!("Failed to fetch quiz: {}", e))?;
 
-        let mut new_quiz_dto = new_quiz_dto;
+        let mut new_quiz_dto = QuizRequestDto::from(quiz.clone());
+
         new_quiz_dto.id = quiz.id.clone();
         new_quiz_dto.name = quiz.name.clone();
         new_quiz_dto.created_by_user_id = quiz.created_by_user_id.clone();
@@ -239,11 +242,13 @@ impl StepHandler {
             .map(|dt| dt.to_rfc3339())
             .unwrap_or_default();
 
-        for question in &mut new_quiz_dto.questions {
-            if question.attempt_limit.trim().is_empty() {
-                question.attempt_limit = quiz.attempt_limit.to_string();
-            }
-        }
+        new_quiz_dto.questions = generate_quiz_request_dto.questions.clone();
+
+        // for question in &mut generate_quiz_request_dto.questions {
+        //     if question.attempt_limit.trim().is_empty() {
+        //         question.attempt_limit = quiz.attempt_limit.to_string();
+        //     }
+        // }
 
         let new_quiz: Quiz = new_quiz_dto
             .try_into()

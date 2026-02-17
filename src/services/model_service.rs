@@ -26,7 +26,7 @@ use crate::{
         WEBSITE_SUMMARISER_PROMPT,
     },
     errors::{AppError, AppResult},
-    models::dto::request::{QuizRequestDto, SummaryDocumentRequestDto},
+    models::dto::request::{GenerateQuizRequestDto, QuizRequestDto, SummaryDocumentRequestDto},
 };
 
 pub struct ModelService {
@@ -165,18 +165,17 @@ impl ModelService {
         &self,
         quiz: QuizRequestDto,
         summary_document: SummaryDocumentRequestDto,
-    ) -> AppResult<QuizRequestDto> {
+    ) -> AppResult<GenerateQuizRequestDto> {
         let quiz_json = serde_json::to_string(&quiz)
             .map_err(|e| AppError::InternalError(format!("Failed to serialize quiz: {}", e)))?;
 
         match self
-            .structured_output::<QuizRequestDto>(vec![
+            .structured_output::<GenerateQuizRequestDto>(vec![
                 ChatCompletionRequestSystemMessage::from(
                     "Tool calls are disabled for structured output. Do not call tools.",
                 )
                 .into(),
                 ChatCompletionRequestSystemMessage::from(STRUCTURED_QUIZ_GENERATOR_PROMPT).into(),
-                ChatCompletionRequestUserMessage::from(quiz_json).into(),
                 ChatCompletionRequestUserMessage::from(summary_document.content).into(),
             ])
             .await

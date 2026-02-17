@@ -11,11 +11,6 @@ use crate::models::domain::quiz_question::{QuizQuestionOption, QuizQuestionType}
 use crate::models::domain::summary_document::SummaryDocument;
 use crate::models::domain::{Quiz, QuizQuestion};
 
-// static USERNAME_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
-//     regex::Regex::new(r"^[a-zA-Z0-9_]+$")
-//         .expect("USERNAME_REGEX is a valid regex pattern")
-// });
-
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
 pub struct CreateUserRequest {
     #[validate(length(min = 1, max = 100))]
@@ -25,10 +20,6 @@ pub struct CreateUserRequest {
     pub last_name: String,
 
     #[validate(length(min = 3, max = 50))]
-    // #[validate(regex(
-    //     path = "*USERNAME_REGEX",
-    //     message = "Username must be alphanumeric with underscores"
-    // ))]
     pub username: String,
 
     #[validate(email(message = "Invalid email format"))]
@@ -66,6 +57,30 @@ pub struct CreateQuizDraftRequest {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
+pub struct GenerateQuizRequestDto {
+    pub title: String,
+    pub description: String,
+    pub topic: String,
+    pub questions: Vec<GenerateQuizQuestionRequestDto>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
+pub struct GenerateQuizQuestionRequestDto {
+    pub title: String,
+    pub description: String,
+    pub question_type: String,
+    pub options: Vec<GenerateQuizQuestionOptionRequestDto>,
+    pub order: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
+pub struct GenerateQuizQuestionOptionRequestDto {
+    pub text: String,        // text to display
+    pub correct: String,     // bool
+    pub explanation: String, // explanation for why this option is correct or incorrect
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
 pub struct QuizRequestDto {
     pub id: String,
     pub name: String,
@@ -100,8 +115,7 @@ pub struct QuizQuestionRequestDto {
 
 impl From<QuizQuestion> for QuizQuestionRequestDto {
     fn from(question: QuizQuestion) -> Self {
-        let options = serde_json::to_string(&question.options)
-            .unwrap_or_else(|_| "[]".to_string());
+        let options = serde_json::to_string(&question.options).unwrap_or_else(|_| "[]".to_string());
 
         QuizQuestionRequestDto {
             id: question.id,
@@ -260,10 +274,7 @@ impl TryFrom<SummaryDocumentRequestDto> for SummaryDocument {
 fn parse_i16_required(value: &str, field: &str) -> AppResult<i16> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return Err(AppError::ValidationError(format!(
-            "{} is required",
-            field
-        )));
+        return Err(AppError::ValidationError(format!("{} is required", field)));
     }
 
     trimmed
@@ -323,32 +334,25 @@ fn parse_options_json(value: &str) -> AppResult<Vec<QuizQuestionOption>> {
         .or_else(|_| attempt_repair_options_json(trimmed))
         .map_err(|e| AppError::ValidationError(format!("Invalid options JSON: {}", e)))?;
 
-    let items = parsed.as_array().ok_or_else(|| {
-        AppError::ValidationError("Options JSON must be an array".to_string())
-    })?;
+    let items = parsed
+        .as_array()
+        .ok_or_else(|| AppError::ValidationError("Options JSON must be an array".to_string()))?;
 
     let mut options = Vec::with_capacity(items.len());
     for (index, item) in items.iter().enumerate() {
         let obj = item.as_object().ok_or_else(|| {
-            AppError::ValidationError(format!(
-                "Option at index {} must be an object",
-                index
-            ))
+            AppError::ValidationError(format!("Option at index {} must be an object", index))
         })?;
 
         let id = obj
             .get("id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                AppError::ValidationError(format!("Option {} missing id", index))
-            })?
+            .ok_or_else(|| AppError::ValidationError(format!("Option {} missing id", index)))?
             .to_string();
         let text = obj
             .get("text")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                AppError::ValidationError(format!("Option {} missing text", index))
-            })?
+            .ok_or_else(|| AppError::ValidationError(format!("Option {} missing text", index)))?
             .to_string();
         let correct = obj
             .get("correct")
