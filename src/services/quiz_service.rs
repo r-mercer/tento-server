@@ -6,8 +6,11 @@ use crate::{
     models::{
         domain::Quiz,
         dto::{
+            quiz_dto::QuizDto,
             request::CreateQuizDraftRequest,
-            response::{CreateQuizDraftResponse, CreateQuizDraftResponseData, QuizDto},
+            response::{
+                CreateQuizDraftResponse, CreateQuizDraftResponseData, QuizDto as ResponseQuizDto,
+            },
         },
     },
     repositories::QuizRepository,
@@ -30,14 +33,14 @@ impl QuizService {
         }
     }
 
-    pub async fn get_quiz(&self, id: &str) -> AppResult<Quiz> {
+    pub async fn get_quiz(&self, id: &str) -> AppResult<QuizDto> {
         let quiz = self
             .repository
             .find_by_id(id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Quiz with id '{}' not found", id)))?;
 
-        Ok(quiz)
+        Ok(QuizDto::from(quiz))
     }
 
     pub async fn create_quiz_draft(
@@ -82,15 +85,15 @@ impl QuizService {
 
         Ok(CreateQuizDraftResponse {
             data: CreateQuizDraftResponseData {
-                quiz: QuizDto::from(created_quiz),
+                quiz: ResponseQuizDto::from(created_quiz),
                 job_id,
             },
             message: "Draft created successfully and processing started".to_string(),
         })
     }
 
-    pub async fn update_quiz(&self, quiz: Quiz) -> AppResult<Quiz> {
-        let mut quiz = quiz;
+    pub async fn update_quiz(&self, quiz: QuizDto) -> AppResult<QuizDto> {
+        let mut quiz: Quiz = quiz.try_into()?;
         let now = chrono::Utc::now();
         if quiz.created_at.is_none() {
             quiz.created_at = Some(now);
@@ -100,6 +103,6 @@ impl QuizService {
         }
 
         let updated_quiz = self.repository.update(quiz).await?;
-        Ok(updated_quiz)
+        Ok(QuizDto::from(updated_quiz))
     }
 }

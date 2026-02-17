@@ -60,7 +60,9 @@ impl QueryRoot {
         extract_claims_from_context(ctx)?;
 
         let id_str = parse_id(&id)?;
-        state.quiz_service.get_quiz(&id_str).await
+        let quiz_dto = state.quiz_service.get_quiz(&id_str).await?;
+        let quiz: Quiz = quiz_dto.try_into()?;
+        Ok(quiz)
     }
 
     // Get quiz for taking (without answers)
@@ -69,10 +71,11 @@ impl QueryRoot {
         extract_claims_from_context(ctx)?;
 
         let id_str = parse_id(&id)?;
-        let quiz = state.quiz_service.get_quiz(&id_str).await?;
+        let quiz_dto = state.quiz_service.get_quiz(&id_str).await?;
 
-        validate_quiz_available_for_taking(&quiz.status)?;
+        validate_quiz_available_for_taking(&quiz_dto.status)?;
 
+        let quiz: Quiz = quiz_dto.try_into()?;
         Ok(QuizForTaking::from_quiz(quiz))
     }
 
@@ -82,7 +85,7 @@ impl QueryRoot {
         let claims = extract_claims_from_context(ctx)?;
 
         let quiz_id = parse_id(&id)?;
-        let quiz = state.quiz_service.get_quiz(&quiz_id).await?;
+        let quiz_dto = state.quiz_service.get_quiz(&quiz_id).await?;
         let user_id = claims.sub.clone();
 
         // Check if user has attempted this quiz
@@ -92,8 +95,9 @@ impl QueryRoot {
             .await?;
 
         // Authorization: User created quiz OR has attempted it
-        can_view_quiz_results(&user_id, &quiz.created_by_user_id, has_attempted)?;
+        can_view_quiz_results(&user_id, &quiz_dto.created_by_user_id, has_attempted)?;
 
+        let quiz: Quiz = quiz_dto.try_into()?;
         Ok(quiz)
     }
 
