@@ -113,7 +113,7 @@ impl StepHandler {
                     id: Uuid::new_v4().to_string(),
                     quiz_id: quiz.id.clone(),
                     url: quiz.url.clone(),
-                    content: summary_dto.content,
+                    content: summary_dto,
                     created_at: now.clone(),
                     modified_at: now,
                 };
