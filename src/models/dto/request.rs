@@ -9,7 +9,7 @@ use crate::errors::{AppError, AppResult};
 use crate::models::domain::quiz::QuizStatus;
 use crate::models::domain::quiz_question::{QuizQuestionOption, QuizQuestionType};
 use crate::models::domain::summary_document::SummaryDocument;
-use crate::models::domain::{Quiz, QuizQuestion};
+use crate::models::dto::quiz_dto::{QuizDto, QuizQuestionDto};
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
 pub struct CreateUserRequestDto {
@@ -57,15 +57,15 @@ pub struct CreateQuizDraftRequestDto {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
-pub struct QuizRequestDto {
+pub struct GenerateQuizRequestDto {
     pub title: String,
     pub description: String,
     pub topic: String,
-    pub questions: Vec<QuizQuestionRequestDto>,
+    pub questions: Vec<GenerateQuizQuestionRequestDto>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
-pub struct QuizQuestionRequestDto {
+pub struct GenerateQuizQuestionRequestDto {
     pub title: String,
     pub description: String,
     pub question_type: String,
@@ -74,14 +74,47 @@ pub struct QuizQuestionRequestDto {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
-pub struct QuizQuestionOptionRequestDto {
+pub struct GenerateQuizQuestionOptionRequestDto {
     pub text: String,        // text to display
     pub correct: String,     // bool
     pub explanation: String, // explanation for why this option is correct or incorrect
 }
 
-impl From<QuizQuestion> for QuizQuestionRequestDto {
-    fn from(question: QuizQuestion) -> Self {
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
+pub struct QuizRequestDto {
+    pub id: String,
+    pub name: String,
+    pub created_by_user_id: String,
+    pub title: String,
+    pub description: String,
+    pub question_count: String,
+    pub required_score: String,
+    pub attempt_limit: String,
+    pub topic: String,
+    pub status: String,
+    pub questions: Vec<QuizQuestionRequestDto>,
+    pub url: String,
+    pub created_at: String,
+    pub modified_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
+pub struct QuizQuestionRequestDto {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub question_type: String,
+    pub options: String,
+    pub option_count: String,
+    pub order: String,
+    pub attempt_limit: String,
+    pub topic: String,
+    pub created_at: String,
+    pub modified_at: String,
+}
+
+impl From<QuizQuestionDto> for QuizQuestionRequestDto {
+    fn from(question: QuizQuestionDto) -> Self {
         let options = serde_json::to_string(&question.options).unwrap_or_else(|_| "[]".to_string());
 
         QuizQuestionRequestDto {
@@ -94,25 +127,23 @@ impl From<QuizQuestion> for QuizQuestionRequestDto {
             order: question.order.to_string(),
             attempt_limit: question.attempt_limit.to_string(),
             topic: question.topic,
-            created_at: question
-                .created_at
-                .map(|dt| dt.to_rfc3339())
-                .unwrap_or_default(),
-            modified_at: question
-                .modified_at
-                .map(|dt| dt.to_rfc3339())
-                .unwrap_or_default(),
+            created_at: question.created_at.to_rfc3339(),
+            modified_at: question.modified_at.to_rfc3339(),
         }
     }
 }
 
-impl TryFrom<QuizQuestionRequestDto> for QuizQuestion {
+impl TryFrom<QuizQuestionRequestDto> for QuizQuestionDto {
     type Error = AppError;
 
     fn try_from(dto: QuizQuestionRequestDto) -> Result<Self, Self::Error> {
         let options = parse_options_json(&dto.options)?;
+        let created_at = parse_optional_datetime(&dto.created_at)?
+            .unwrap_or_else(Utc::now);
+        let modified_at = parse_optional_datetime(&dto.modified_at)?
+            .unwrap_or_else(Utc::now);
 
-        Ok(QuizQuestion {
+        Ok(QuizQuestionDto {
             id: dto.id,
             title: dto.title,
             description: dto.description,
@@ -122,74 +153,65 @@ impl TryFrom<QuizQuestionRequestDto> for QuizQuestion {
             order: parse_i16_required(&dto.order, "order")?,
             attempt_limit: parse_i16_required(&dto.attempt_limit, "attempt_limit")?,
             topic: dto.topic,
-            created_at: parse_optional_datetime(&dto.created_at)?,
-            modified_at: parse_optional_datetime(&dto.modified_at)?,
+            created_at,
+            modified_at,
         })
     }
 }
 
-impl From<Quiz> for QuizRequestDto {
-    fn from(quiz: Quiz) -> Self {
+impl From<QuizDto> for QuizRequestDto {
+    fn from(quiz: QuizDto) -> Self {
         QuizRequestDto {
             id: quiz.id,
             name: quiz.name,
             created_by_user_id: quiz.created_by_user_id,
-            title: quiz.title.unwrap_or_default(),
-            description: quiz.description.unwrap_or_default(),
+            title: quiz.title,
+            description: quiz.description,
             question_count: quiz.question_count.to_string(),
             required_score: quiz.required_score.to_string(),
             attempt_limit: quiz.attempt_limit.to_string(),
-            topic: quiz.topic.unwrap_or_default(),
-            status: format!("{:?}", quiz.status),
+            topic: quiz.topic,
+            status: format!("{:?}", quiz.status).to_lowercase(),
             questions: quiz
                 .questions
-                .unwrap_or_default()
                 .into_iter()
                 .map(QuizQuestionRequestDto::from)
                 .collect(),
             url: quiz.url,
-            created_at: quiz
-                .created_at
-                .map(|dt| dt.to_rfc3339())
-                .unwrap_or_default(),
-            modified_at: quiz
-                .modified_at
-                .map(|dt| dt.to_rfc3339())
-                .unwrap_or_default(),
+            created_at: quiz.created_at.to_rfc3339(),
+            modified_at: quiz.modified_at.to_rfc3339(),
         }
     }
 }
 
-impl TryFrom<QuizRequestDto> for Quiz {
+impl TryFrom<QuizRequestDto> for QuizDto {
     type Error = AppError;
 
     fn try_from(dto: QuizRequestDto) -> Result<Self, Self::Error> {
-        let questions = if dto.questions.is_empty() {
-            None
-        } else {
-            Some(
-                dto.questions
-                    .into_iter()
-                    .map(QuizQuestion::try_from)
-                    .collect::<Result<Vec<_>, AppError>>()?,
-            )
-        };
+        let created_at = parse_optional_datetime(&dto.created_at)?
+            .unwrap_or_else(Utc::now);
+        let modified_at = parse_optional_datetime(&dto.modified_at)?
+            .unwrap_or_else(Utc::now);
 
-        Ok(Quiz {
+        Ok(QuizDto {
             id: dto.id,
             name: dto.name,
             created_by_user_id: dto.created_by_user_id,
-            title: none_if_empty(dto.title),
-            description: none_if_empty(dto.description),
+            title: dto.title,
+            description: dto.description,
             question_count: parse_i16_required(&dto.question_count, "question_count")?,
             required_score: parse_i16_required(&dto.required_score, "required_score")?,
             attempt_limit: parse_i16_required(&dto.attempt_limit, "attempt_limit")?,
-            topic: none_if_empty(dto.topic),
+            topic: dto.topic,
             status: parse_quiz_status(&dto.status)?,
-            questions,
+            questions: dto
+                .questions
+                .into_iter()
+                .map(QuizQuestionDto::try_from)
+                .collect::<Result<Vec<_>, AppError>>()?,
             url: dto.url,
-            created_at: parse_optional_datetime(&dto.created_at)?,
-            modified_at: parse_optional_datetime(&dto.modified_at)?,
+            created_at,
+            modified_at,
         })
     }
 }
@@ -258,10 +280,6 @@ fn parse_optional_datetime(value: &str) -> AppResult<Option<DateTime<Utc>>> {
     DateTime::parse_from_rfc3339(trimmed)
         .map(|dt| Some(dt.with_timezone(&Utc)))
         .map_err(|e| AppError::ValidationError(format!("Invalid datetime: {}", e)))
-}
-
-fn none_if_empty(value: String) -> Option<String> {
-    Some(value)
 }
 
 fn parse_quiz_status(value: &str) -> AppResult<QuizStatus> {
@@ -416,7 +434,7 @@ mod tests {
 
     #[test]
     fn test_valid_create_user_request() {
-        let request = CreateUserRequest {
+        let request = CreateUserRequestDto {
             first_name: "John".to_string(),
             last_name: "Doe".to_string(),
             username: "johndoe".to_string(),
@@ -427,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_invalid_email() {
-        let request = CreateUserRequest {
+        let request = CreateUserRequestDto {
             first_name: "John".to_string(),
             last_name: "Doe".to_string(),
             username: "johndoe".to_string(),
@@ -438,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_username_too_short() {
-        let request = CreateUserRequest {
+        let request = CreateUserRequestDto {
             first_name: "John".to_string(),
             last_name: "Doe".to_string(),
             username: "ab".to_string(),

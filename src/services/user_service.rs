@@ -7,8 +7,11 @@ use crate::{
     models::{
         domain::User,
         dto::{
-            request::{CreateUserRequest, UpdateUserRequest},
-            response::{CreateUserResponse, DeleteUserResponse, UpdateUserResponse, UserDto, PaginatedResponseUserDto, PaginationMetadata},
+            request::{CreateUserRequestDto, UpdateUserRequestDto},
+            response::{
+                CreateUserResponse, DeleteUserResponse, PaginatedResponseUserDto,
+                PaginationMetadata, UpdateUserResponse, UserDto,
+            },
         },
     },
     repositories::UserRepository,
@@ -20,7 +23,10 @@ impl UserService {
     pub fn new(repository: Arc<dyn UserRepository>) -> Self {
         Self { repository }
     }
-    pub async fn create_user(&self, request: CreateUserRequest) -> AppResult<CreateUserResponse> {
+    pub async fn create_user(
+        &self,
+        request: CreateUserRequestDto,
+    ) -> AppResult<CreateUserResponse> {
         request.validate()?;
 
         if self
@@ -77,7 +83,7 @@ impl UserService {
     pub async fn update_user(
         &self,
         username: &str,
-        request: UpdateUserRequest,
+        request: UpdateUserRequestDto,
     ) -> AppResult<UpdateUserResponse> {
         request.validate()?;
 
@@ -163,8 +169,8 @@ mod tests {
         }
     }
 
-    fn create_test_request() -> CreateUserRequest {
-        CreateUserRequest {
+    fn create_test_request() -> CreateUserRequestDto {
+        CreateUserRequestDto {
             first_name: "John".to_string(),
             last_name: "Doe".to_string(),
             username: "johndoe".to_string(),

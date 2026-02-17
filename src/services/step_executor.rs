@@ -1,8 +1,11 @@
 use crate::{
     app_state::AppState,
     models::{
-        domain::{summary_document::SummaryDocument, Quiz},
-        dto::request::{GenerateQuizRequestDto, QuizRequestDto, SummaryDocumentRequestDto},
+        domain::{quiz_question::QuizQuestionOption, summary_document::SummaryDocument, Quiz},
+        dto::request::{
+            GenerateQuizRequestDto, QuizQuestionRequestDto, QuizRequestDto,
+            SummaryDocumentRequestDto,
+        },
     },
     services::agent_orchestrator_service::{AgentJob, JobStep},
 };
@@ -177,12 +180,13 @@ impl StepHandler {
             .await
             .map_err(|e| format!("Failed to fetch summary document: {}", e))?;
 
-        let quiz_dto = QuizRequestDto::from(quiz);
+        let quiz_dto = crate::models::dto::quiz_dto::QuizDto::from(quiz);
+        let quiz_request_dto = QuizRequestDto::from(quiz_dto);
         let summary_dto = SummaryDocumentRequestDto::from(summary_document);
 
         match app_state
             .model_service
-            .structured_quiz_generator(quiz_dto, summary_dto)
+            .structured_quiz_generator(quiz_request_dto, summary_dto)
             .await
         {
             Ok(response) => {
@@ -235,26 +239,62 @@ impl StepHandler {
             .try_into()
             .map_err(|e| format!("Failed to parse quiz: {}", e))?;
 
-        let mut new_quiz_dto = QuizRequestDto::from(quiz.clone());
+        let quiz_dto = crate::models::dto::quiz_dto::QuizDto::from(quiz.clone());
+        let mut new_quiz_request = QuizRequestDto::from(quiz_dto);
 
-        new_quiz_dto.id = quiz.id.clone();
-        new_quiz_dto.name = quiz.name.clone();
-        new_quiz_dto.created_by_user_id = quiz.created_by_user_id.clone();
-        new_quiz_dto.question_count = quiz.question_count.to_string();
-        new_quiz_dto.required_score = quiz.required_score.to_string();
-        new_quiz_dto.attempt_limit = quiz.attempt_limit.to_string();
-        new_quiz_dto.status = format!("{:?}", quiz.status).to_lowercase();
-        new_quiz_dto.url = quiz.url.clone();
-        new_quiz_dto.created_at = quiz
+        new_quiz_request.id = quiz.id.clone();
+        new_quiz_request.name = quiz.name.clone();
+        new_quiz_request.created_by_user_id = quiz.created_by_user_id.clone();
+        new_quiz_request.question_count = quiz.question_count.to_string();
+        new_quiz_request.required_score = quiz.required_score.to_string();
+        new_quiz_request.attempt_limit = quiz.attempt_limit.to_string();
+        new_quiz_request.status = format!("{:?}", quiz.status).to_lowercase();
+        new_quiz_request.url = quiz.url.clone();
+        new_quiz_request.created_at = quiz
             .created_at
             .map(|dt| dt.to_rfc3339())
             .unwrap_or_default();
-        new_quiz_dto.modified_at = quiz
+        new_quiz_request.modified_at = quiz
             .modified_at
             .map(|dt| dt.to_rfc3339())
             .unwrap_or_default();
 
-        new_quiz_dto.questions = generate_quiz_request_dto.questions.clone();
+        let now = Utc::now().to_rfc3339();
+        let generated_questions: Vec<QuizQuestionRequestDto> = generate_quiz_request_dto
+            .questions
+            .into_iter()
+            .map(|question| {
+                let options: Vec<QuizQuestionOption> = question
+                    .options
+                    .into_iter()
+                    .map(|option| QuizQuestionOption {
+                        id: Uuid::new_v4().to_string(),
+                        text: option.text,
+                        correct: option.correct.trim().eq_ignore_ascii_case("true"),
+                        explanation: option.explanation,
+                    })
+                    .collect();
+                let option_count = options.len() as i16;
+                let options_json =
+                    serde_json::to_string(&options).unwrap_or_else(|_| "[]".to_string());
+
+                QuizQuestionRequestDto {
+                    id: Uuid::new_v4().to_string(),
+                    title: question.title,
+                    description: question.description,
+                    question_type: question.question_type,
+                    options: options_json,
+                    option_count: option_count.to_string(),
+                    order: question.order,
+                    attempt_limit: quiz.attempt_limit.to_string(),
+                    topic: quiz.topic.clone().unwrap_or_default(),
+                    created_at: now.clone(),
+                    modified_at: now.clone(),
+                }
+            })
+            .collect();
+
+        new_quiz_request.questions = generated_questions;
 
         // for question in &mut generate_quiz_request_dto.questions {
         //     if question.attempt_limit.trim().is_empty() {
@@ -262,9 +302,12 @@ impl StepHandler {
         //     }
         // }
 
-        let new_quiz: Quiz = new_quiz_dto
+        let new_quiz_dto: crate::models::dto::quiz_dto::QuizDto = new_quiz_request
             .try_into()
             .map_err(|e| format!("Failed to validate quiz from job results: {}", e))?;
+        let new_quiz: Quiz = new_quiz_dto
+            .try_into()
+            .map_err(|e| format!("Failed to parse quiz: {}", e))?;
 
         quiz.status = crate::models::domain::quiz::QuizStatus::Ready;
         quiz.modified_at = Some(chrono::Utc::now());

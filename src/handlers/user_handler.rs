@@ -6,13 +6,13 @@ use crate::{
     app_state::AppState,
     auth::{require_admin, require_owner_or_admin, AuthenticatedUser},
     errors::AppError,
-    models::dto::request::{CreateUserRequest, UpdateUserRequest, PaginationParams},
+    models::dto::request::{CreateUserRequestDto, UpdateUserRequestDto, PaginationParams},
 };
 
 #[post("/api/users")]
 async fn create_user(
     state: web::Data<Arc<AppState>>,
-    request: web::Json<CreateUserRequest>,
+    request: web::Json<CreateUserRequestDto>,
     _auth: AuthenticatedUser, // Require authentication
 ) -> Result<HttpResponse, AppError> {
     let response = state.user_service.create_user(request.into_inner()).await?;
@@ -51,7 +51,7 @@ async fn get_all_users(
 async fn update_user(
     state: web::Data<Arc<AppState>>,
     username: web::Path<String>,
-    request: web::Json<UpdateUserRequest>,
+    request: web::Json<UpdateUserRequestDto>,
     auth: AuthenticatedUser, // Require authentication
 ) -> Result<HttpResponse, AppError> {
     require_owner_or_admin(&auth.0, &username)?;

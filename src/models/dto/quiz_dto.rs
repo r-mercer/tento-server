@@ -1,4 +1,3 @@
-use async_graphql::InputObject;
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -9,7 +8,7 @@ use crate::models::domain::quiz::QuizStatus;
 use crate::models::domain::quiz_question::{QuizQuestionOption, QuizQuestionType};
 use crate::models::domain::{Quiz, QuizQuestion};
 
-#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, JsonSchema)]
 pub struct QuizQuestionDto {
 	pub id: String,
 	pub title: String,
@@ -63,7 +62,7 @@ impl TryFrom<QuizQuestionDto> for QuizQuestion {
 	}
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, JsonSchema)]
 pub struct QuizDto {
 	pub id: String,
 	pub name: String,

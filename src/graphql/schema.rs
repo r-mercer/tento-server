@@ -8,7 +8,7 @@ use crate::{
     models::{
         domain::Quiz,
         dto::{
-            request::{CreateUserRequest, UpdateUserRequest, SubmitQuizAttemptInput},
+            request::{CreateUserRequestDto, SubmitQuizAttemptInput, UpdateUserRequestDto},
             response::{
                 CreateUserResponse, DeleteUserResponse, PaginatedResponseUserDto,
                 UpdateUserResponse, UserDto, QuizForTaking, QuizAttemptResponse,
@@ -219,7 +219,7 @@ impl MutationRoot {
     async fn create_user(
         &self,
         ctx: &Context<'_>,
-        input: CreateUserRequest,
+        input: CreateUserRequestDto,
     ) -> AppResult<CreateUserResponse> {
         let state = ctx.data::<AppState>()?;
 
@@ -232,7 +232,7 @@ impl MutationRoot {
         &self,
         ctx: &Context<'_>,
         username: String,
-        input: UpdateUserRequest,
+        input: UpdateUserRequestDto,
     ) -> AppResult<UpdateUserResponse> {
         let state = ctx.data::<AppState>()?;
         let claims = extract_claims_from_context(ctx)?;

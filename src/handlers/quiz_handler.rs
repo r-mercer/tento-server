@@ -6,7 +6,7 @@ use crate::{
     app_state::AppState,
     auth::AuthenticatedUser,
     errors::AppError,
-    models::dto::request::CreateQuizDraftRequest,
+    models::dto::request::CreateQuizDraftRequestDto,
 };
 
 #[get("/api/quizzes/{id}")]
@@ -22,7 +22,7 @@ async fn get_quiz(
 #[post("/api/quizzes/drafts")]
 async fn create_quiz_draft(
     state: web::Data<Arc<AppState>>,
-    request: web::Json<CreateQuizDraftRequest>,
+    request: web::Json<CreateQuizDraftRequestDto>,
     _auth: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
     let response = state.quiz_service.create_quiz_draft(request.into_inner()).await?;

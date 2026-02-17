@@ -7,7 +7,7 @@ use crate::{
         domain::Quiz,
         dto::{
             quiz_dto::QuizDto,
-            request::CreateQuizDraftRequest,
+            request::CreateQuizDraftRequestDto,
             response::{
                 CreateQuizDraftResponse, CreateQuizDraftResponseData, QuizDto as ResponseQuizDto,
             },
@@ -45,7 +45,7 @@ impl QuizService {
 
     pub async fn create_quiz_draft(
         &self,
-        request: CreateQuizDraftRequest,
+        request: CreateQuizDraftRequestDto,
     ) -> AppResult<CreateQuizDraftResponse> {
         request.validate()?;
 

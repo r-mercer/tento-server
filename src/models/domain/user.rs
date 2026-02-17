@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::models::dto::request::CreateUserRequest;
+use crate::models::dto::request::CreateUserRequestDto;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum UserRole {
@@ -36,7 +36,7 @@ impl User {
             created_at: Some(Utc::now()),
         }
     }
-    pub fn from_request(request: CreateUserRequest) -> Self {
+    pub fn from_request(request: CreateUserRequestDto) -> Self {
         User {
             first_name: request.first_name,
             last_name: request.last_name,
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_user_from_request() {
-        let request = CreateUserRequest {
+        let request = CreateUserRequestDto {
             first_name: "Jane".to_string(),
             last_name: "Smith".to_string(),
             username: "janesmith".to_string(),

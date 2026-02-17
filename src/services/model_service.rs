@@ -116,7 +116,7 @@ impl ModelService {
 
     pub async fn quiz_generator(
         &self,
-        quiz: QuizRequestDto,
+        _quiz: QuizRequestDto,
         summary_document: SummaryDocumentRequestDto,
     ) -> AppResult<String> {
         let quiz_json = serde_json::to_string(&quiz)
@@ -166,9 +166,6 @@ impl ModelService {
         quiz: QuizRequestDto,
         summary_document: SummaryDocumentRequestDto,
     ) -> AppResult<GenerateQuizRequestDto> {
-        let quiz_json = serde_json::to_string(&quiz)
-            .map_err(|e| AppError::InternalError(format!("Failed to serialize quiz: {}", e)))?;
-
         match self
             .structured_output::<GenerateQuizRequestDto>(vec![
                 ChatCompletionRequestSystemMessage::from(
