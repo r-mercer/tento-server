@@ -7,7 +7,7 @@ use crate::{
         domain::Quiz,
         dto::{
             quiz_dto::QuizDto,
-            request::CreateQuizDraftRequestDto,
+            request::QuizDraftDto,
             response::{
                 CreateQuizDraftResponse, CreateQuizDraftResponseData, QuizDto as ResponseQuizDto,
             },
@@ -43,15 +43,25 @@ impl QuizService {
         Ok(QuizDto::from(quiz))
     }
 
+    pub async fn get_quiz_draft(&self, id: &str) -> AppResult<QuizDraftDto> {
+        let quiz: Quiz = self
+            .repository
+            .get_by_status_by_id(id, "draft")
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Quiz draft with id '{}' not found", id)))?;
+
+        Ok(QuizDraftDto::from_quiz(quiz))
+    }
+
     pub async fn create_quiz_draft(
         &self,
-        request: CreateQuizDraftRequestDto,
+        request: QuizDraftDto,
     ) -> AppResult<CreateQuizDraftResponse> {
         request.validate()?;
 
         let quiz = Quiz::new_draft(
             &request.name,
-            "", // TODO: Get from authenticated user context
+            &request.user_id,
             request.question_count,
             request.required_score,
             request.attempt_limit,

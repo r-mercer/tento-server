@@ -6,6 +6,7 @@ use crate::{db::Database, errors::AppResult, models::domain::Quiz};
 #[async_trait]
 pub trait QuizRepository: Send + Sync {
     async fn find_by_id(&self, id: &str) -> AppResult<Option<Quiz>>;
+    async fn get_by_status_by_id(&self, id: &str, status: &str) -> AppResult<Option<Quiz>>;
     async fn create_quiz_draft(&self, quiz: Quiz) -> AppResult<Quiz>;
     async fn update(&self, quiz: Quiz) -> AppResult<Quiz>;
 }
@@ -43,15 +44,19 @@ impl MongoQuizRepository {
 #[async_trait]
 impl QuizRepository for MongoQuizRepository {
     async fn find_by_id(&self, id: &str) -> AppResult<Option<Quiz>> {
-        let quiz = self
-            .collection
-            .find_one(doc! { "id": id })
-            .await?;
+        let quiz = self.collection.find_one(doc! { "id": id }).await?;
         Ok(quiz)
     }
 
     async fn create_quiz_draft(&self, quiz: Quiz) -> AppResult<Quiz> {
         self.collection.insert_one(&quiz).await?;
+        Ok(quiz)
+    }
+    async fn get_by_status_by_id(&self, id: &str, status: &str) -> AppResult<Option<Quiz>> {
+        let quiz = self
+            .collection
+            .find_one(doc! { "id": id, "status": status  })
+            .await?;
         Ok(quiz)
     }
 

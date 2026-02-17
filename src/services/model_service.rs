@@ -116,7 +116,7 @@ impl ModelService {
 
     pub async fn quiz_generator(
         &self,
-        _quiz: QuizRequestDto,
+        quiz: QuizRequestDto,
         summary_document: SummaryDocumentRequestDto,
     ) -> AppResult<String> {
         let quiz_json = serde_json::to_string(&quiz)
@@ -163,7 +163,7 @@ impl ModelService {
 
     pub async fn structured_quiz_generator(
         &self,
-        quiz: QuizRequestDto,
+        _quiz: QuizRequestDto,
         summary_document: SummaryDocumentRequestDto,
     ) -> AppResult<GenerateQuizRequestDto> {
         match self

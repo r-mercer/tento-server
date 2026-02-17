@@ -39,14 +39,16 @@ pub struct UpdateUserRequestDto {
 }
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
-pub struct CreateQuizDraftRequestDto {
+pub struct QuizDraftDto {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
+
+    pub user_id: String,
 
     // #[validate(required)]
     pub question_count: i16,
     //
-    // #[validate(required)]
+    // #[validate(required]
     pub required_score: i16,
     //
     // #[validate(required)]
@@ -54,6 +56,18 @@ pub struct CreateQuizDraftRequestDto {
 
     #[validate(url)]
     pub url: String,
+}
+impl QuizDraftDto {
+    pub(crate) fn from_quiz(quiz: crate::models::domain::Quiz) -> QuizDraftDto {
+        QuizDraftDto {
+            name: quiz.name,
+            user_id: quiz.created_by_user_id,
+            question_count: quiz.question_count,
+            required_score: quiz.required_score,
+            attempt_limit: quiz.attempt_limit,
+            url: quiz.url,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
@@ -138,10 +152,8 @@ impl TryFrom<QuizQuestionRequestDto> for QuizQuestionDto {
 
     fn try_from(dto: QuizQuestionRequestDto) -> Result<Self, Self::Error> {
         let options = parse_options_json(&dto.options)?;
-        let created_at = parse_optional_datetime(&dto.created_at)?
-            .unwrap_or_else(Utc::now);
-        let modified_at = parse_optional_datetime(&dto.modified_at)?
-            .unwrap_or_else(Utc::now);
+        let created_at = parse_optional_datetime(&dto.created_at)?.unwrap_or_else(Utc::now);
+        let modified_at = parse_optional_datetime(&dto.modified_at)?.unwrap_or_else(Utc::now);
 
         Ok(QuizQuestionDto {
             id: dto.id,
@@ -188,10 +200,8 @@ impl TryFrom<QuizRequestDto> for QuizDto {
     type Error = AppError;
 
     fn try_from(dto: QuizRequestDto) -> Result<Self, Self::Error> {
-        let created_at = parse_optional_datetime(&dto.created_at)?
-            .unwrap_or_else(Utc::now);
-        let modified_at = parse_optional_datetime(&dto.modified_at)?
-            .unwrap_or_else(Utc::now);
+        let created_at = parse_optional_datetime(&dto.created_at)?.unwrap_or_else(Utc::now);
+        let modified_at = parse_optional_datetime(&dto.modified_at)?.unwrap_or_else(Utc::now);
 
         Ok(QuizDto {
             id: dto.id,
