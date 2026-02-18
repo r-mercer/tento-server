@@ -20,7 +20,10 @@ pub struct UserDto {
 impl From<User> for UserDto {
     fn from(user: User) -> Self {
         UserDto {
-            id: user.id.map(|o| o.to_hex()).unwrap_or_else(|| user.username.clone()),
+            id: user
+                .id
+                .map(|o| o.to_hex())
+                .unwrap_or_else(|| user.username.clone()),
             username: user.username,
             email: user.email,
             full_name: format!("{} {}", user.first_name, user.last_name),
@@ -30,7 +33,7 @@ impl From<User> for UserDto {
 }
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
-pub struct QuizDto {
+pub struct QuizResponseDto {
     pub id: String,
     pub name: String,
     pub created_by_user_id: String,
@@ -53,9 +56,9 @@ pub struct QuizDto {
     pub modified_at: Option<DateTime<Utc>>,
 }
 
-impl From<Quiz> for QuizDto {
+impl From<Quiz> for QuizResponseDto {
     fn from(quiz: Quiz) -> Self {
-        QuizDto {
+        QuizResponseDto {
             id: quiz.id,
             name: quiz.name,
             created_by_user_id: quiz.created_by_user_id,
@@ -82,7 +85,7 @@ pub struct ApiResponse<T: async_graphql::OutputType> {
 
 #[derive(Debug, Serialize, SimpleObject)]
 pub struct CreateQuizDraftResponseData {
-    pub quiz: QuizDto,
+    pub quiz: QuizResponseDto,
     pub job_id: String,
 }
 
@@ -251,7 +254,7 @@ pub struct QuestionAttemptDetail {
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct QuizAttemptReview {
     pub attempt: QuizAttemptResponse,
-    pub quiz: QuizDto,
+    pub quiz: QuizResponseDto,
     pub question_results: Vec<QuestionAttemptDetail>,
 }
 

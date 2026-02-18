@@ -77,19 +77,23 @@ impl UserRepository for MongoUserRepository {
 
     async fn find_all_paginated(&self, offset: i64, limit: i64) -> AppResult<(Vec<User>, i64)> {
         use mongodb::options::FindOptions;
-        
+
         // Get total count
         let total = self.collection.count_documents(doc! {}).await? as i64;
-        
+
         // Get paginated results
         let find_options = FindOptions::builder()
             .skip(Some(offset as u64))
             .limit(Some(limit))
             .build();
-        
-        let cursor = self.collection.find(doc! {}).with_options(find_options).await?;
+
+        let cursor = self
+            .collection
+            .find(doc! {})
+            .with_options(find_options)
+            .await?;
         let users: Vec<User> = cursor.try_collect().await?;
-        
+
         Ok((users, total))
     }
 
@@ -141,9 +145,7 @@ impl UserRepository for MongoUserRepository {
             .with_options(options)
             .await?;
 
-        result.ok_or_else(|| {
-            AppError::InternalError("Failed to upsert user".to_string())
-        })
+        result.ok_or_else(|| AppError::InternalError("Failed to upsert user".to_string()))
     }
 
     async fn delete(&self, username: &str) -> AppResult<()> {
@@ -176,7 +178,7 @@ impl UserRepository for MongoUserRepository {
         // Unique index on github_id (for OAuth lookups)
         let github_options = IndexOptions::builder()
             .unique(true)
-            .sparse(true)  // Allow null values since not all users may have github_id
+            .sparse(true) // Allow null values since not all users may have github_id
             .build();
         let github_model = IndexModel::builder()
             .keys(doc! { "github_id": 1 })

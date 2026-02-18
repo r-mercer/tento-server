@@ -7,7 +7,12 @@ use crate::{db::Database, errors::AppResult, models::domain::Quiz};
 pub trait QuizRepository: Send + Sync {
     async fn find_by_id(&self, id: &str) -> AppResult<Option<Quiz>>;
     async fn list_quizzes(&self, offset: i64, limit: i64) -> AppResult<(Vec<Quiz>, i64)>;
-    async fn list_quizzes_by_user(&self, user_id: &str, offset: i64, limit: i64) -> AppResult<(Vec<Quiz>, i64)>;
+    async fn list_quizzes_by_user(
+        &self,
+        user_id: &str,
+        offset: i64,
+        limit: i64,
+    ) -> AppResult<(Vec<Quiz>, i64)>;
     async fn get_by_status_by_id(&self, id: &str, status: &str) -> AppResult<Option<Quiz>>;
     async fn create_quiz_draft(&self, quiz: Quiz) -> AppResult<Quiz>;
     async fn update(&self, quiz: Quiz) -> AppResult<Quiz>;
@@ -63,13 +68,22 @@ impl QuizRepository for MongoQuizRepository {
             .limit(Some(limit))
             .build();
 
-        let cursor = self.collection.find(doc! {}).with_options(find_options).await?;
+        let cursor = self
+            .collection
+            .find(doc! {})
+            .with_options(find_options)
+            .await?;
         let items: Vec<Quiz> = cursor.try_collect().await?;
 
         Ok((items, total))
     }
 
-    async fn list_quizzes_by_user(&self, user_id: &str, offset: i64, limit: i64) -> AppResult<(Vec<Quiz>, i64)> {
+    async fn list_quizzes_by_user(
+        &self,
+        user_id: &str,
+        offset: i64,
+        limit: i64,
+    ) -> AppResult<(Vec<Quiz>, i64)> {
         use futures::TryStreamExt;
         use mongodb::options::FindOptions;
 
@@ -83,7 +97,11 @@ impl QuizRepository for MongoQuizRepository {
             .limit(Some(limit))
             .build();
 
-        let cursor = self.collection.find(filter.clone()).with_options(find_options).await?;
+        let cursor = self
+            .collection
+            .find(filter.clone())
+            .with_options(find_options)
+            .await?;
         let items: Vec<Quiz> = cursor.try_collect().await?;
 
         Ok((items, total))

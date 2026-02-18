@@ -6,15 +6,12 @@ use crate::{
     db::Database,
     errors::AppResult,
     repositories::{
-        MongoAgentJobRepository, MongoQuizRepository,
-        MongoQuizAttemptRepository, MongoSummaryDocumentRepository, MongoUserRepository,
-        UserRepository, QuizAttemptRepository,
+        MongoAgentJobRepository, MongoQuizAttemptRepository, MongoQuizRepository,
+        MongoSummaryDocumentRepository, MongoUserRepository, QuizAttemptRepository, UserRepository,
     },
     services::{
-        agent_orchestrator_service::AgentOrchestrator,
-        model_service::ModelService,
-        quiz_service::QuizService,
-        summary_document_service::SummaryDocumentService,
+        agent_orchestrator_service::AgentOrchestrator, model_service::ModelService,
+        quiz_service::QuizService, summary_document_service::SummaryDocumentService,
         user_service::UserService,
     },
 };
@@ -45,7 +42,10 @@ impl AppState {
 
         let quiz_repository = Arc::new(MongoQuizRepository::new(&db));
         quiz_repository.ensure_indexes().await?;
-        let quiz_service = Arc::new(QuizService::new(quiz_repository, agent_orchestrator.clone()));
+        let quiz_service = Arc::new(QuizService::new(
+            quiz_repository,
+            agent_orchestrator.clone(),
+        ));
 
         let quiz_attempt_repository_mongo = Arc::new(MongoQuizAttemptRepository::new(&db));
         quiz_attempt_repository_mongo.ensure_indexes().await?;
@@ -53,7 +53,8 @@ impl AppState {
 
         let summary_document_repository = Arc::new(MongoSummaryDocumentRepository::new(&db));
         summary_document_repository.ensure_indexes().await?;
-        let summary_document_service = Arc::new(SummaryDocumentService::new(summary_document_repository));
+        let summary_document_service =
+            Arc::new(SummaryDocumentService::new(summary_document_repository));
 
         let model_service = Arc::new(ModelService::new(&config));
 

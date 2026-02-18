@@ -2,7 +2,10 @@ use async_graphql::{Context, EmptySubscription, Object, Schema as GraphQLSchema,
 
 use crate::{
     app_state::AppState,
-    auth::{extract_claims_from_context, require_admin, require_owner_or_admin, can_view_quiz_results, can_view_quiz_attempt},
+    auth::{
+        can_view_quiz_attempt, can_view_quiz_results, extract_claims_from_context, require_admin,
+        require_owner_or_admin,
+    },
     errors::{AppError, AppResult},
     graphql::helpers::{parse_id, validate_quiz_available_for_taking},
     models::{
@@ -10,9 +13,9 @@ use crate::{
         dto::{
             request::{CreateUserRequestDto, SubmitQuizAttemptInput, UpdateUserRequestDto},
             response::{
-                CreateUserResponse, DeleteUserResponse, PaginatedResponseUserDto,
-                UpdateUserResponse, UserDto, QuizForTaking, QuizAttemptResponse,
-                QuizAttemptReview, PaginatedResponseQuizAttempt, PaginationMetadata,
+                CreateUserResponse, DeleteUserResponse, PaginatedResponseQuizAttempt,
+                PaginatedResponseUserDto, PaginationMetadata, QuizAttemptResponse,
+                QuizAttemptReview, QuizForTaking, UpdateUserResponse, UserDto,
             },
         },
     },
@@ -217,10 +220,7 @@ impl QueryRoot {
         // Authorization: User must own the attempt
         can_view_quiz_attempt(&user_id, &attempt.user_id)?;
 
-        let quiz_dto = state
-            .quiz_service
-            .get_quiz(&attempt.quiz_id)
-            .await?;
+        let quiz_dto = state.quiz_service.get_quiz(&attempt.quiz_id).await?;
 
         let quiz: Quiz = quiz_dto.try_into()?;
 

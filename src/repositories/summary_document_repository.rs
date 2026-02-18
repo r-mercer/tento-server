@@ -42,10 +42,7 @@ impl MongoSummaryDocumentRepository {
 #[async_trait]
 impl SummaryDocumentRepository for MongoSummaryDocumentRepository {
     async fn find_by_id(&self, id: &str) -> AppResult<Option<SummaryDocument>> {
-        let document = self
-            .collection
-            .find_one(doc! { "id": id })
-            .await?;
+        let document = self.collection.find_one(doc! { "id": id }).await?;
         Ok(document)
     }
 

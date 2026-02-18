@@ -6,7 +6,7 @@ use crate::{
     app_state::AppState,
     auth::{require_admin, require_owner_or_admin, AuthenticatedUser},
     errors::AppError,
-    models::dto::request::{CreateUserRequestDto, UpdateUserRequestDto, PaginationParams},
+    models::dto::request::{CreateUserRequestDto, PaginationParams, UpdateUserRequestDto},
 };
 
 #[post("/api/users")]

@@ -8,9 +8,7 @@ use crate::{
         dto::{
             quiz_dto::QuizDto,
             request::QuizDraftDto,
-            response::{
-                CreateQuizDraftResponse, CreateQuizDraftResponseData, QuizDto as ResponseQuizDto,
-            },
+            response::{CreateQuizDraftResponse, CreateQuizDraftResponseData, QuizResponseDto},
         },
     },
     repositories::QuizRepository,
@@ -49,7 +47,12 @@ impl QuizService {
         Ok((dtos, total))
     }
 
-    pub async fn list_quizzes_by_user(&self, user_id: &str, offset: i64, limit: i64) -> AppResult<(Vec<QuizDto>, i64)> {
+    pub async fn list_quizzes_by_user(
+        &self,
+        user_id: &str,
+        offset: i64,
+        limit: i64,
+    ) -> AppResult<(Vec<QuizDto>, i64)> {
         let (quizzes, total) = self
             .repository
             .list_quizzes_by_user(user_id, offset, limit)
@@ -112,7 +115,7 @@ impl QuizService {
 
         Ok(CreateQuizDraftResponse {
             data: CreateQuizDraftResponseData {
-                quiz: ResponseQuizDto::from(created_quiz),
+                quiz: QuizResponseDto::from(created_quiz),
                 job_id,
             },
             message: "Draft created successfully and processing started".to_string(),

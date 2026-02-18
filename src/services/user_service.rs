@@ -67,9 +67,13 @@ impl UserService {
         Ok(users.into_iter().map(UserDto::from).collect())
     }
 
-    pub async fn get_all_users_paginated(&self, offset: i64, limit: i64) -> AppResult<PaginatedResponseUserDto> {
+    pub async fn get_all_users_paginated(
+        &self,
+        offset: i64,
+        limit: i64,
+    ) -> AppResult<PaginatedResponseUserDto> {
         let (users, total) = self.repository.find_all_paginated(offset, limit).await?;
-        
+
         Ok(PaginatedResponseUserDto {
             data: users.into_iter().map(UserDto::from).collect(),
             pagination: PaginationMetadata {
@@ -139,9 +143,7 @@ impl UserService {
         self.repository
             .find_by_id(id)
             .await?
-            .ok_or_else(|| {
-                AppError::NotFound(format!("User with id '{}' not found", id))
-            })
+            .ok_or_else(|| AppError::NotFound(format!("User with id '{}' not found", id)))
     }
 }
 

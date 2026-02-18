@@ -52,7 +52,12 @@ impl User {
             created_at: Some(Utc::now()),
         }
     }
-    pub fn from_github(github_id: String, username: String, email: String, name: Option<String>) -> Self {
+    pub fn from_github(
+        github_id: String,
+        username: String,
+        email: String,
+        name: Option<String>,
+    ) -> Self {
         let (first_name, last_name) = if let Some(full_name) = name {
             let parts: Vec<&str> = full_name.split_whitespace().collect();
             if parts.len() >= 2 {
@@ -63,7 +68,7 @@ impl User {
         } else {
             (username.clone(), String::new())
         };
-        
+
         User {
             id: None,
             first_name,

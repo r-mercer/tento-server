@@ -11,7 +11,11 @@ pub trait AgentJobRepository: Send + Sync {
     async fn get_job(&self, job_id: &str) -> Result<Option<AgentJob>, String>;
     async fn get_job_status(&self, job_id: &str) -> Result<Option<JobStatus>, String>;
     async fn start_job(&self, job_id: &str) -> Result<(), String>;
-    async fn complete_step(&self, job_id: &str, result: Option<serde_json::Value>) -> Result<(), String>;
+    async fn complete_step(
+        &self,
+        job_id: &str,
+        result: Option<serde_json::Value>,
+    ) -> Result<(), String>;
     async fn fail_step(&self, job_id: &str, error: String) -> Result<(), String>;
     async fn pause_job(&self, job_id: &str) -> Result<(), String>;
     async fn resume_job(&self, job_id: &str) -> Result<(), String>;
@@ -48,9 +52,7 @@ impl MongoAgentJobRepository {
             .await
             .map_err(|e| format!("Failed to create job_id index: {}", e))?;
 
-        let status_index = IndexModel::builder()
-            .keys(doc! { "status": 1 })
-            .build();
+        let status_index = IndexModel::builder().keys(doc! { "status": 1 }).build();
 
         self.collection
             .create_index(status_index)
@@ -286,10 +288,7 @@ impl AgentJobRepository for MongoAgentJobRepository {
         Ok(())
     }
 
-    async fn list_jobs(
-        &self,
-        status_filter: Option<JobStatus>,
-    ) -> Result<Vec<AgentJob>, String> {
+    async fn list_jobs(&self, status_filter: Option<JobStatus>) -> Result<Vec<AgentJob>, String> {
         let filter = if let Some(status) = status_filter {
             doc! { "status": status.to_string() }
         } else {
@@ -335,10 +334,7 @@ impl AgentJobRepository for MongoAgentJobRepository {
 
     async fn save(&self, job: &AgentJob) -> Result<(), String> {
         self.collection
-            .replace_one(
-                doc! { "job_id": &job.job_id },
-                job,
-            )
+            .replace_one(doc! { "job_id": &job.job_id }, job)
             .await
             .map_err(|e| format!("Failed to save job: {}", e))?;
 

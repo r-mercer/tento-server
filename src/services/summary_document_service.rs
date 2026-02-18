@@ -18,13 +18,9 @@ impl SummaryDocumentService {
     }
 
     pub async fn get_summary_document(&self, id: &str) -> AppResult<SummaryDocument> {
-        let document = self
-            .repository
-            .find_by_id(id)
-            .await?
-            .ok_or_else(|| {
-                AppError::NotFound(format!("Summary document with id '{}' not found", id))
-            })?;
+        let document = self.repository.find_by_id(id).await?.ok_or_else(|| {
+            AppError::NotFound(format!("Summary document with id '{}' not found", id))
+        })?;
 
         Ok(document)
     }

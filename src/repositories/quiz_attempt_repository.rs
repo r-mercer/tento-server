@@ -13,11 +13,7 @@ pub trait QuizAttemptRepository: Send + Sync {
         user_id: &str,
         quiz_id: &str,
     ) -> AppResult<Vec<QuizAttempt>>;
-    async fn has_user_attempted_quiz(
-        &self,
-        user_id: &str,
-        quiz_id: &str,
-    ) -> AppResult<bool>;
+    async fn has_user_attempted_quiz(&self, user_id: &str, quiz_id: &str) -> AppResult<bool>;
     async fn count_user_attempts(&self, user_id: &str, quiz_id: &str) -> AppResult<usize>;
     async fn get_user_attempts(
         &self,
@@ -62,11 +58,7 @@ impl MongoQuizAttemptRepository {
 
         let user_id_index = IndexModel::builder()
             .keys(doc! { "user_id": 1 })
-            .options(
-                IndexOptions::builder()
-                    .name("user_id".to_string())
-                    .build(),
-            )
+            .options(IndexOptions::builder().name("user_id".to_string()).build())
             .build();
 
         self.collection.create_index(id_index).await?;
@@ -86,10 +78,7 @@ impl QuizAttemptRepository for MongoQuizAttemptRepository {
     }
 
     async fn find_by_id(&self, id: &str) -> AppResult<Option<QuizAttempt>> {
-        let attempt = self
-            .collection
-            .find_one(doc! { "id": id })
-            .await?;
+        let attempt = self.collection.find_one(doc! { "id": id }).await?;
         Ok(attempt)
     }
 
@@ -100,31 +89,23 @@ impl QuizAttemptRepository for MongoQuizAttemptRepository {
     ) -> AppResult<Vec<QuizAttempt>> {
         let attempts = self
             .collection
-            .find(
-                doc! {
-                    "user_id": user_id,
-                    "quiz_id": quiz_id
-                },
-            )
+            .find(doc! {
+                "user_id": user_id,
+                "quiz_id": quiz_id
+            })
             .await?
             .try_collect()
             .await?;
         Ok(attempts)
     }
 
-    async fn has_user_attempted_quiz(
-        &self,
-        user_id: &str,
-        quiz_id: &str,
-    ) -> AppResult<bool> {
+    async fn has_user_attempted_quiz(&self, user_id: &str, quiz_id: &str) -> AppResult<bool> {
         let attempt = self
             .collection
-            .find_one(
-                doc! {
-                    "user_id": user_id,
-                    "quiz_id": quiz_id
-                },
-            )
+            .find_one(doc! {
+                "user_id": user_id,
+                "quiz_id": quiz_id
+            })
             .await?;
         Ok(attempt.is_some())
     }
@@ -132,12 +113,10 @@ impl QuizAttemptRepository for MongoQuizAttemptRepository {
     async fn count_user_attempts(&self, user_id: &str, quiz_id: &str) -> AppResult<usize> {
         let count = self
             .collection
-            .count_documents(
-                doc! {
-                    "user_id": user_id,
-                    "quiz_id": quiz_id
-                },
-            )
+            .count_documents(doc! {
+                "user_id": user_id,
+                "quiz_id": quiz_id
+            })
             .await?;
         Ok(count as usize)
     }

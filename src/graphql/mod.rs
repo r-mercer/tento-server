@@ -1,4 +1,4 @@
-pub mod schema;
 pub mod helpers;
+pub mod schema;
 
 pub use schema::{create_schema, Schema};
