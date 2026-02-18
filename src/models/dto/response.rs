@@ -91,6 +91,13 @@ pub struct CreateQuizDraftResponseData {
 
 pub type CreateUserResponse = ApiResponse<UserDto>;
 pub type UpdateUserResponse = ApiResponse<UserDto>;
+
+#[derive(Debug, Clone, Serialize, SimpleObject)]
+pub struct DeleteResponse {
+    pub message: String,
+}
+
+pub type DeleteUserResponse = DeleteResponse;
 pub type CreateQuizDraftResponse = ApiResponse<CreateQuizDraftResponseData>;
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
@@ -163,26 +170,6 @@ pub struct QuizQuestionForTaking {
     pub option_count: i16,
     pub order: i16,
     pub topic: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug, Clone, Serialize, SimpleObject)]
-pub struct QuizForTaking {
-    pub id: String,
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    pub question_count: i16,
-    pub required_score: i16,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub topic: Option<String>,
-    pub status: QuizStatus,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub questions: Option<Vec<QuizQuestionForTaking>>,
-    pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<DateTime<Utc>>,
 }
