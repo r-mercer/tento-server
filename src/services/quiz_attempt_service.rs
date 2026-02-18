@@ -13,18 +13,37 @@ impl QuizAttemptService {
         quiz: &Quiz,
         submitted_answers: &[QuestionAnswerInput],
     ) -> AppResult<(i16, Vec<QuizAttemptQuestion>)> {
-        let mut total_points: i16 = 0;
-        let mut question_results = Vec::new();
-
-        // Get questions from quiz
-        let questions = quiz
+        // Validate all submitted question IDs exist in the quiz
+        let question_map: std::collections::HashMap<&str, &QuizQuestion> = quiz
             .questions
             .as_ref()
-            .ok_or(AppError::BadRequest("Quiz has no questions".to_string()))?;
+            .ok_or(AppError::BadRequest("Quiz has no questions".to_string()))?
+            .iter()
+            .map(|q| (q.id.as_str(), q))
+            .collect();
 
-        // Create a map of questions by ID for quick lookup
-        let question_map: std::collections::HashMap<&str, &QuizQuestion> =
-            questions.iter().map(|q| (q.id.as_str(), q)).collect();
+        for submitted_answer in submitted_answers {
+            if !question_map.contains_key(submitted_answer.question_id.as_str()) {
+                return Err(AppError::BadRequest(format!(
+                    "Question '{}' not found in quiz",
+                    submitted_answer.question_id
+                )));
+            }
+
+            let question = question_map[submitted_answer.question_id.as_str()];
+            for option_id in &submitted_answer.selected_option_ids {
+                let valid_option = question.options.iter().any(|opt| opt.id == *option_id);
+                if !valid_option {
+                    return Err(AppError::BadRequest(format!(
+                        "Option '{}' not found in question '{}'",
+                        option_id, submitted_answer.question_id
+                    )));
+                }
+            }
+        }
+
+        let mut total_points: i16 = 0;
+        let mut question_results = Vec::new();
 
         for submitted_answer in submitted_answers {
             let question_id = &submitted_answer.question_id;

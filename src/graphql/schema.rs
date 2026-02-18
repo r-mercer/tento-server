@@ -59,11 +59,17 @@ impl QueryRoot {
 
     async fn quiz(&self, ctx: &Context<'_>, id: ID) -> AppResult<Quiz> {
         let state = ctx.data::<AppState>()?;
-
-        extract_claims_from_context(ctx)?;
+        let claims = extract_claims_from_context(ctx)?;
 
         let id_str = parse_id(&id)?;
         let quiz_dto = state.quiz_service.get_quiz(&id_str).await?;
+
+        if quiz_dto.created_by_user_id != claims.sub {
+            return Err(AppError::Forbidden(
+                "Only quiz creator can view full quiz with answers".into(),
+            ));
+        }
+
         let quiz: Quiz = quiz_dto.try_into()?;
         Ok(quiz)
     }

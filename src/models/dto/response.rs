@@ -102,8 +102,24 @@ pub struct ChatCompletionResponse {
 pub type ChatCompletionApiResponse = ApiResponse<ChatCompletionResponse>;
 
 #[derive(Debug, Serialize, SimpleObject)]
-pub struct DeleteUserResponse {
-    pub message: String,
+pub struct QuizForTaking {
+    pub id: String,
+    pub name: String,
+    pub created_by_user_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub question_count: i16,
+    pub required_score: i16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub topic: Option<String>,
+    pub status: QuizStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub questions: Option<Vec<QuizQuestionForTaking>>,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
@@ -199,6 +215,7 @@ impl QuizForTaking {
         QuizForTaking {
             id: quiz.id,
             name: quiz.name,
+            created_by_user_id: quiz.created_by_user_id,
             title: quiz.title,
             description: quiz.description,
             question_count: quiz.question_count,
