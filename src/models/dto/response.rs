@@ -8,6 +8,7 @@ use crate::models::domain::{quiz::QuizStatus, Quiz, QuizQuestion, User};
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct UserDto {
+    pub id: String,
     pub username: String,
     pub email: String,
     pub full_name: String,
@@ -19,6 +20,7 @@ pub struct UserDto {
 impl From<User> for UserDto {
     fn from(user: User) -> Self {
         UserDto {
+            id: user.id.map(|o| o.to_hex()).unwrap_or_else(|| user.username.clone()),
             username: user.username,
             email: user.email,
             full_name: format!("{} {}", user.first_name, user.last_name),
@@ -268,6 +270,7 @@ mod tests {
     #[test]
     fn test_user_dto_full_name() {
         let user = User {
+            id: None,
             first_name: "John".to_string(),
             last_name: "Doe".to_string(),
             username: "johndoe".to_string(),

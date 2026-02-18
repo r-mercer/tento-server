@@ -16,7 +16,8 @@ pub fn require_admin(claims: &Claims) -> AppResult<()> {
 }
 
 pub fn require_owner_or_admin(claims: &Claims, resource_owner: &str) -> AppResult<()> {
-    if claims.role != UserRole::Admin && claims.sub != resource_owner {
+    // Resource owner is expected to be a username in most callers; compare against claims.username
+    if claims.role != UserRole::Admin && claims.username != resource_owner {
         return Err(AppError::Unauthorized(
             "You can only access your own resources".to_string(),
         ));
@@ -61,6 +62,7 @@ mod tests {
     fn create_test_claims(username: &str, role: UserRole) -> Claims {
         Claims {
             sub: username.to_string(),
+            username: username.to_string(),
             email: format!("{}@example.com", username),
             role,
             iat: 0,

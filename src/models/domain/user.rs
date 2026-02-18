@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use mongodb::bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 
 use crate::models::dto::request::CreateUserRequestDto;
@@ -12,6 +13,8 @@ pub enum UserRole {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct User {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
     pub first_name: String,
     pub last_name: String,
     pub username: String,
@@ -27,6 +30,7 @@ pub struct User {
 impl User {
     pub fn new(first_name: &str, last_name: &str, username: &str, email: &str) -> Self {
         User {
+            id: None,
             first_name: first_name.to_string(),
             last_name: last_name.to_string(),
             username: username.to_string(),
@@ -38,6 +42,7 @@ impl User {
     }
     pub fn from_request(request: CreateUserRequestDto) -> Self {
         User {
+            id: None,
             first_name: request.first_name,
             last_name: request.last_name,
             username: request.username,
@@ -47,7 +52,6 @@ impl User {
             created_at: Some(Utc::now()),
         }
     }
-    
     pub fn from_github(github_id: String, username: String, email: String, name: Option<String>) -> Self {
         let (first_name, last_name) = if let Some(full_name) = name {
             let parts: Vec<&str> = full_name.split_whitespace().collect();
@@ -61,6 +65,7 @@ impl User {
         };
         
         User {
+            id: None,
             first_name,
             last_name,
             username,
@@ -75,15 +80,19 @@ impl User {
 #[cfg(test)]
 impl User {
     pub fn test_user(username: &str, email: &str) -> Self {
-        User::new("Test", "User", username, email)
+        let mut u = User::new("Test", "User", username, email);
+        u.id = None;
+        u
     }
     pub fn test_user_simple(username: &str) -> Self {
-        User::new(
+        let mut u = User::new(
             "Test",
             "User",
             username,
             &format!("{}@example.com", username),
-        )
+        );
+        u.id = None;
+        u
     }
     pub fn assert_fields(&self, first_name: &str, last_name: &str, username: &str, email: &str) {
         assert_eq!(self.first_name, first_name);

@@ -101,6 +101,63 @@ impl QueryRoot {
         Ok(quiz)
     }
 
+    // List all quizzes (paginated)
+    async fn quizzes(
+        &self,
+        ctx: &Context<'_>,
+        offset: Option<i64>,
+        limit: Option<i64>,
+    ) -> AppResult<Vec<Quiz>> {
+        let state = ctx.data::<AppState>()?;
+
+        // require authentication
+        extract_claims_from_context(ctx)?;
+
+        let offset = offset.unwrap_or(0).max(0);
+        let limit = limit.unwrap_or(20).clamp(1, 100);
+
+        let (quiz_dtos, _total) = state.quiz_service.list_quizzes(offset, limit).await?;
+
+        let quizzes = quiz_dtos
+            .into_iter()
+            .map(|qdto| qdto.try_into())
+            .collect::<AppResult<Vec<Quiz>>>()?;
+
+        Ok(quizzes)
+    }
+
+    // List quizzes created by a specific user
+    async fn user_quizzes(
+        &self,
+        ctx: &Context<'_>,
+        user_id: ID,
+        offset: Option<i64>,
+        limit: Option<i64>,
+    ) -> AppResult<Vec<Quiz>> {
+        let state = ctx.data::<AppState>()?;
+
+        // require authentication
+        extract_claims_from_context(ctx)?;
+
+        // Accept any user identifier (UUID, ObjectId hex, or username) for filtering
+        let user_id_str = user_id.to_string();
+
+        let offset = offset.unwrap_or(0).max(0);
+        let limit = limit.unwrap_or(20).clamp(1, 100);
+
+        let (quiz_dtos, _total) = state
+            .quiz_service
+            .list_quizzes_by_user(&user_id_str, offset, limit)
+            .await?;
+
+        let quizzes = quiz_dtos
+            .into_iter()
+            .map(|qdto| qdto.try_into())
+            .collect::<AppResult<Vec<Quiz>>>()?;
+
+        Ok(quizzes)
+    }
+
     // Get user's quiz attempts
     async fn quiz_attempts(
         &self,
@@ -264,7 +321,9 @@ impl MutationRoot {
         let state = ctx.data::<AppState>()?;
         let claims = extract_claims_from_context(ctx)?;
 
-        let user_id = parse_id(&claims.sub)?;
+        // `claims.sub` contains the user id (MongoDB ObjectId hex or fallback username).
+        // Do not validate it as a UUID here; use as-is for DB user references.
+        let user_id = claims.sub.clone();
         let quiz_id = parse_id(&input.quiz_id)?;
 
         // Fetch quiz

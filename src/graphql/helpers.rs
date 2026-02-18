@@ -3,10 +3,19 @@ use crate::models::domain::quiz::QuizStatus;
 
 /// Helper to validate UUID format and return as String
 pub fn parse_id(id: &str) -> AppResult<String> {
-    // Validate it's a valid UUID format
-    uuid::Uuid::parse_str(id)
-        .map_err(|_| AppError::ValidationError("Invalid UUID format".to_string()))?;
-    Ok(id.to_string())
+    // Accept either a UUID or a 24-character MongoDB ObjectId hex string
+    if uuid::Uuid::parse_str(id).is_ok() {
+        return Ok(id.to_string());
+    }
+
+    // Check for 24-hex-char ObjectId
+    if id.len() == 24 && id.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Ok(id.to_string());
+    }
+
+    Err(AppError::ValidationError(
+        "Invalid id format; expected UUID or 24-char ObjectId hex".to_string(),
+    ))
 }
 
 /// Check if quiz is available for taking

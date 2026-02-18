@@ -16,6 +16,7 @@ use crate::{
 pub trait UserRepository: Send + Sync {
     async fn create(&self, user: User) -> AppResult<User>;
     async fn find_by_username(&self, username: &str) -> AppResult<Option<User>>;
+    async fn find_by_id(&self, id: &str) -> AppResult<Option<User>>;
     async fn find_by_github_id(&self, github_id: &str) -> AppResult<Option<User>>;
     async fn find_all(&self) -> AppResult<Vec<User>>;
     async fn find_all_paginated(&self, offset: i64, limit: i64) -> AppResult<(Vec<User>, i64)>;
@@ -48,6 +49,15 @@ impl UserRepository for MongoUserRepository {
             .collection
             .find_one(doc! { "username": username })
             .await?;
+        Ok(user)
+    }
+
+    async fn find_by_id(&self, id: &str) -> AppResult<Option<User>> {
+        use mongodb::bson::oid::ObjectId;
+        let oid = ObjectId::parse_str(id).map_err(|e| {
+            crate::errors::AppError::ValidationError(format!("Invalid id format: {}", e))
+        })?;
+        let user = self.collection.find_one(doc! { "_id": oid }).await?;
         Ok(user)
     }
 

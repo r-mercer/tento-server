@@ -43,6 +43,22 @@ impl QuizService {
         Ok(QuizDto::from(quiz))
     }
 
+    pub async fn list_quizzes(&self, offset: i64, limit: i64) -> AppResult<(Vec<QuizDto>, i64)> {
+        let (quizzes, total) = self.repository.list_quizzes(offset, limit).await?;
+        let dtos = quizzes.into_iter().map(QuizDto::from).collect();
+        Ok((dtos, total))
+    }
+
+    pub async fn list_quizzes_by_user(&self, user_id: &str, offset: i64, limit: i64) -> AppResult<(Vec<QuizDto>, i64)> {
+        let (quizzes, total) = self
+            .repository
+            .list_quizzes_by_user(user_id, offset, limit)
+            .await?;
+
+        let dtos = quizzes.into_iter().map(QuizDto::from).collect();
+        Ok((dtos, total))
+    }
+
     pub async fn get_quiz_draft(&self, id: &str) -> AppResult<QuizDraftDto> {
         let quiz: Quiz = self
             .repository

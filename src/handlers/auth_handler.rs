@@ -17,6 +17,7 @@ pub struct CallbackParams {
 pub struct AuthResponse {
     pub token: String,
     pub refresh_token: String,
+    pub id: String,
     pub username: String,
     pub email: String,
 }
@@ -139,13 +140,20 @@ pub async fn auth_github_callback(
     // Upsert user
     let saved_user = state.user_service.upsert_oauth_user(user).await?;
 
-    // Generate tokens
+    // Generate tokens - prefer MongoDB ObjectId as subject when available
     let token = state.jwt_service.create_token(&saved_user)?;
-    let refresh_token_str = state.jwt_service.create_refresh_token(&saved_user.username)?;
+    let subject_id = saved_user
+        .id
+        .as_ref()
+        .map(|oid| oid.to_hex())
+        .unwrap_or_else(|| saved_user.username.clone());
+
+    let refresh_token_str = state.jwt_service.create_refresh_token(&subject_id)?;
 
     Ok(HttpResponse::Ok().json(AuthResponse {
         token,
         refresh_token: refresh_token_str,
+        id: subject_id,
         username: saved_user.username,
         email: saved_user.email,
     }))

@@ -134,13 +134,13 @@ impl UserService {
         self.repository.find_by_github_id(github_id).await
     }
 
-    /// Get full User domain object by username (for token generation)
-    pub async fn get_user_for_token(&self, username: &str) -> AppResult<User> {
+    /// Get full User domain object by id (for token generation/refresh)
+    pub async fn get_user_for_token(&self, id: &str) -> AppResult<User> {
         self.repository
-            .find_by_username(username)
+            .find_by_id(id)
             .await?
             .ok_or_else(|| {
-                AppError::NotFound(format!("User with username '{}' not found", username))
+                AppError::NotFound(format!("User with id '{}' not found", id))
             })
     }
 }
@@ -159,6 +159,7 @@ mod tests {
         impl UserRepository for UserRepo {
             async fn create(&self, user: User) -> AppResult<User>;
             async fn find_by_username(&self, username: &str) -> AppResult<Option<User>>;
+            async fn find_by_id(&self, id: &str) -> AppResult<Option<User>>;
             async fn find_by_github_id(&self, github_id: &str) -> AppResult<Option<User>>;
             async fn find_all(&self) -> AppResult<Vec<User>>;
             async fn find_all_paginated(&self, offset: i64, limit: i64) -> AppResult<(Vec<User>, i64)>;
