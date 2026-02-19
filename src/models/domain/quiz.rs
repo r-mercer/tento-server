@@ -62,3 +62,16 @@ impl Quiz {
         }
     }
 }
+
+impl Quiz {
+    pub fn test_quiz(name: &str, user_id: &str) -> Self {
+        Quiz::new_draft(name, user_id, 5, 70, 3, "https://example.com")
+    }
+
+    pub fn test_quiz_with_title(name: &str, user_id: &str, title: &str, description: &str) -> Self {
+        let mut quiz = Quiz::new_draft(name, user_id, 5, 70, 3, "https://example.com");
+        quiz.title = Some(title.to_string());
+        quiz.description = Some(description.to_string());
+        quiz
+    }
+}

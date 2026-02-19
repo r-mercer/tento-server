@@ -38,7 +38,7 @@ pub struct UpdateUserRequestDto {
     pub email: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject)]
 pub struct QuizDraftDto {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
@@ -433,7 +433,7 @@ pub struct SubmitQuizAttemptInput {
     pub answers: Vec<QuestionAnswerInput>,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject)]
 pub struct UpdateQuizQuestionOptionInput {
     pub id: String,
     pub text: Option<String>,
@@ -441,7 +441,7 @@ pub struct UpdateQuizQuestionOptionInput {
     pub explanation: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject)]
 pub struct UpdateQuizQuestionInput {
     pub id: String,
     pub title: Option<String>,
@@ -449,7 +449,7 @@ pub struct UpdateQuizQuestionInput {
     pub options: Option<Vec<UpdateQuizQuestionOptionInput>>,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+#[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject)]
 pub struct UpdateQuizInput {
     pub id: String,
     pub title: Option<String>,
