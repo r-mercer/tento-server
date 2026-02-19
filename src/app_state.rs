@@ -62,7 +62,8 @@ impl AppState {
 
         let refresh_token_repository_mongo = Arc::new(MongoRefreshTokenRepository::new(&db));
         refresh_token_repository_mongo.ensure_indexes().await?;
-        let refresh_token_repository: Arc<dyn RefreshTokenRepository> = refresh_token_repository_mongo;
+        let refresh_token_repository: Arc<dyn RefreshTokenRepository> =
+            refresh_token_repository_mongo;
 
         let jwt_service = Arc::new(JwtService::new(
             &config.gh_client_secret,

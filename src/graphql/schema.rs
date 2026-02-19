@@ -11,7 +11,9 @@ use crate::{
     models::{
         domain::Quiz,
         dto::{
-            request::{CreateUserRequestDto, SubmitQuizAttemptInput, UpdateUserRequestDto},
+            request::{
+                CreateUserRequestDto, SubmitQuizAttemptInput, UpdateQuizInput, UpdateUserRequestDto,
+            },
             response::{
                 CreateUserResponse, DeleteUserResponse, PaginatedResponseQuizAttempt,
                 PaginatedResponseUserDto, PaginationMetadata, QuizAttemptResponse,
@@ -370,6 +372,21 @@ impl MutationRoot {
         let attempt = state.quiz_attempt_repository.create(attempt).await?;
 
         Ok(QuizAttemptResponse::from(attempt))
+    }
+
+    // Update quiz (partial update)
+    async fn update_quiz(&self, ctx: &Context<'_>, input: UpdateQuizInput) -> AppResult<Quiz> {
+        let state = ctx.data::<AppState>()?;
+        let claims = extract_claims_from_context(ctx)?;
+
+        // Fetch existing quiz to check ownership
+        let existing_quiz = state.quiz_service.get_quiz(&input.id).await?;
+
+        require_owner_or_admin(&claims, &existing_quiz.created_by_user_id)?;
+
+        let updated_quiz = state.quiz_service.update_quiz_partial(input).await?;
+
+        updated_quiz.try_into()
     }
 }
 

@@ -171,7 +171,11 @@ pub async fn auth_github_callback(
     log::info!("Created refresh token for user: {}", subject_id);
 
     let full_name = if !saved_user.first_name.is_empty() || !saved_user.last_name.is_empty() {
-        Some(format!("{} {}", saved_user.first_name, saved_user.last_name).trim().to_string())
+        Some(
+            format!("{} {}", saved_user.first_name, saved_user.last_name)
+                .trim()
+                .to_string(),
+        )
     } else {
         None
     };
@@ -252,7 +256,8 @@ pub async fn refresh_token(
 
     let new_token_hash = hash_token(&new_refresh_token_str);
     let expires_at = Utc::now() + Duration::hours(168);
-    let new_refresh_token_record = RefreshToken::new(subject_id.clone(), new_token_hash, expires_at);
+    let new_refresh_token_record =
+        RefreshToken::new(subject_id.clone(), new_token_hash, expires_at);
     state
         .refresh_token_repository
         .create(new_refresh_token_record)

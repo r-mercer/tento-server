@@ -4,10 +4,10 @@ use validator::Validate;
 use crate::{
     errors::{AppError, AppResult},
     models::{
-        domain::Quiz,
+        domain::{Quiz, QuizQuestion},
         dto::{
             quiz_dto::QuizDto,
-            request::QuizDraftDto,
+            request::{QuizDraftDto, UpdateQuizInput},
             response::{CreateQuizDraftResponse, CreateQuizDraftResponseData, QuizResponseDto},
         },
     },
@@ -135,4 +135,99 @@ impl QuizService {
         let updated_quiz = self.repository.update(quiz).await?;
         Ok(QuizDto::from(updated_quiz))
     }
+
+    pub async fn update_quiz_partial(&self, input: UpdateQuizInput) -> AppResult<QuizDto> {
+        let existing_quiz = self
+            .repository
+            .find_by_id(&input.id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Quiz with id '{}' not found", input.id)))?;
+
+        let mut quiz = existing_quiz;
+        let now = chrono::Utc::now();
+
+        if let Some(title) = input.title {
+            quiz.title = Some(title);
+        }
+        if let Some(description) = input.description {
+            quiz.description = Some(description);
+        }
+
+        if let Some(questions_input) = input.questions {
+            let merged_questions = merge_questions(&quiz, questions_input)?;
+            quiz.questions = Some(merged_questions);
+        }
+
+        quiz.modified_at = Some(now);
+
+        let updated_quiz = self.repository.update(quiz).await?;
+        Ok(QuizDto::from(updated_quiz))
+    }
+}
+
+fn merge_questions(
+    existing: &Quiz,
+    updates: Vec<crate::models::dto::request::UpdateQuizQuestionInput>,
+) -> AppResult<Vec<QuizQuestion>> {
+    let existing_questions = existing.questions.as_ref().ok_or_else(|| {
+        AppError::ValidationError(
+            "Cannot update questions on quiz without existing questions".to_string(),
+        )
+    })?;
+
+    let mut result = Vec::new();
+    for update in updates {
+        if let Some(existing_question) = existing_questions.iter().find(|q| q.id == update.id) {
+            let mut merged = existing_question.clone();
+            if let Some(title) = update.title {
+                merged.title = title;
+            }
+            if let Some(description) = update.description {
+                merged.description = description;
+            }
+            if let Some(options_input) = update.options {
+                let merged_options = merge_options(existing_question, options_input)?;
+                merged.options = merged_options;
+            }
+            merged.modified_at = Some(chrono::Utc::now());
+            result.push(merged);
+        } else {
+            return Err(AppError::NotFound(format!(
+                "Question with id '{}' not found",
+                update.id
+            )));
+        }
+    }
+
+    Ok(result)
+}
+
+fn merge_options(
+    existing_question: &QuizQuestion,
+    updates: Vec<crate::models::dto::request::UpdateQuizQuestionOptionInput>,
+) -> AppResult<Vec<crate::models::domain::quiz_question::QuizQuestionOption>> {
+    let mut result = Vec::new();
+    for update in updates {
+        if let Some(existing_option) = existing_question.options.iter().find(|o| o.id == update.id)
+        {
+            let mut merged = existing_option.clone();
+            if let Some(text) = update.text {
+                merged.text = text;
+            }
+            if let Some(correct) = update.correct {
+                merged.correct = correct;
+            }
+            if let Some(explanation) = update.explanation {
+                merged.explanation = explanation;
+            }
+            result.push(merged);
+        } else {
+            return Err(AppError::NotFound(format!(
+                "Option with id '{}' not found",
+                update.id
+            )));
+        }
+    }
+
+    Ok(result)
 }

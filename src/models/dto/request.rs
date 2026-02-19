@@ -433,6 +433,30 @@ pub struct SubmitQuizAttemptInput {
     pub answers: Vec<QuestionAnswerInput>,
 }
 
+#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+pub struct UpdateQuizQuestionOptionInput {
+    pub id: String,
+    pub text: Option<String>,
+    pub correct: Option<bool>,
+    pub explanation: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+pub struct UpdateQuizQuestionInput {
+    pub id: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub options: Option<Vec<UpdateQuizQuestionOptionInput>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+pub struct UpdateQuizInput {
+    pub id: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub questions: Option<Vec<UpdateQuizQuestionInput>>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

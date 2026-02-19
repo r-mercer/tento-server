@@ -95,15 +95,11 @@ impl RefreshTokenRepository for MongoRefreshTokenRepository {
         self.collection.create_index(token_hash_model).await?;
         info!("Created unique index on refresh_tokens.token_hash");
 
-        let user_id_model = IndexModel::builder()
-            .keys(doc! { "user_id": 1 })
-            .build();
+        let user_id_model = IndexModel::builder().keys(doc! { "user_id": 1 }).build();
         self.collection.create_index(user_id_model).await?;
         info!("Created index on refresh_tokens.user_id");
 
-        let expires_at_model = IndexModel::builder()
-            .keys(doc! { "expires_at": 1 })
-            .build();
+        let expires_at_model = IndexModel::builder().keys(doc! { "expires_at": 1 }).build();
         self.collection.create_index(expires_at_model).await?;
         info!("Created index on refresh_tokens.expires_at");
 
