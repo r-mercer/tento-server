@@ -83,6 +83,39 @@ async fn health_check() -> HttpResponse {
     }))
 }
 
+#[get("/health/ready")]
+async fn health_check_ready(state: web::Data<Arc<AppState>>) -> HttpResponse {
+    let db_health = state.db.health_check().await;
+
+    let status = if db_health.is_ok() {
+        "ready"
+    } else {
+        "not_ready"
+    };
+
+    let response = serde_json::json!({
+        "status": status,
+        "version": env!("CARGO_PKG_VERSION"),
+        "dependencies": {
+            "mongodb": if db_health.is_ok() { "ok" } else { "error" }
+        }
+    });
+
+    if db_health.is_ok() {
+        HttpResponse::Ok().json(response)
+    } else {
+        HttpResponse::ServiceUnavailable().json(response)
+    }
+}
+
+#[get("/health/live")]
+async fn health_check_live() -> HttpResponse {
+    HttpResponse::Ok().json(serde_json::json!({
+        "status": "alive",
+        "version": env!("CARGO_PKG_VERSION")
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

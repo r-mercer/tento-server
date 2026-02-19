@@ -28,6 +28,7 @@ pub struct AppState {
     pub refresh_token_repository: Arc<dyn RefreshTokenRepository>,
     pub config: Arc<Config>,
     pub agent_orchestrator: Arc<AgentOrchestrator>,
+    pub db: Database,
 }
 
 impl AppState {
@@ -80,6 +81,7 @@ impl AppState {
             refresh_token_repository,
             config: Arc::new(config),
             agent_orchestrator,
+            db,
         })
     }
 }

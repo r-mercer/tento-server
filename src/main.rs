@@ -114,6 +114,8 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             // Public routes
             .service(handlers::health_check)
+            .service(handlers::health_check_ready)
+            .service(handlers::health_check_live)
             .service(handlers::auth_github_callback)
             .service(handlers::refresh_token)
             .service(handlers::logout)
