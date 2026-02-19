@@ -7,7 +7,8 @@ use crate::{
     errors::AppResult,
     repositories::{
         MongoAgentJobRepository, MongoQuizAttemptRepository, MongoQuizRepository,
-        MongoSummaryDocumentRepository, MongoUserRepository, QuizAttemptRepository, UserRepository,
+        MongoRefreshTokenRepository, MongoSummaryDocumentRepository, MongoUserRepository,
+        QuizAttemptRepository, RefreshTokenRepository, UserRepository,
     },
     services::{
         agent_orchestrator_service::AgentOrchestrator, model_service::ModelService,
@@ -24,6 +25,7 @@ pub struct AppState {
     pub summary_document_service: Arc<SummaryDocumentService>,
     pub model_service: Arc<ModelService>,
     pub jwt_service: Arc<JwtService>,
+    pub refresh_token_repository: Arc<dyn RefreshTokenRepository>,
     pub config: Arc<Config>,
     pub agent_orchestrator: Arc<AgentOrchestrator>,
 }
@@ -58,6 +60,10 @@ impl AppState {
 
         let model_service = Arc::new(ModelService::new(&config));
 
+        let refresh_token_repository_mongo = Arc::new(MongoRefreshTokenRepository::new(&db));
+        refresh_token_repository_mongo.ensure_indexes().await?;
+        let refresh_token_repository: Arc<dyn RefreshTokenRepository> = refresh_token_repository_mongo;
+
         let jwt_service = Arc::new(JwtService::new(
             &config.gh_client_secret,
             config.jwt_expiration_hours,
@@ -70,6 +76,7 @@ impl AppState {
             summary_document_service,
             model_service,
             jwt_service,
+            refresh_token_repository,
             config: Arc::new(config),
             agent_orchestrator,
         })

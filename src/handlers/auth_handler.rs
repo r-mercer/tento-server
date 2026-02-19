@@ -1,10 +1,15 @@
 use actix_web::{get, post, web, HttpResponse};
+use chrono::{Duration, Utc};
 use octocrab::Octocrab;
 use secrecy::ExposeSecret as _;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{app_state::AppState, errors::AppError, models::domain::user::User};
+use crate::{
+    app_state::AppState,
+    errors::AppError,
+    models::domain::{hash_token, user::User, RefreshToken},
+};
 
 #[derive(Debug, Deserialize)]
 pub struct CallbackParams {
@@ -20,6 +25,8 @@ pub struct AuthResponse {
     pub id: String,
     pub username: String,
     pub email: String,
+    pub role: String,
+    pub full_name: Option<String>,
 }
 
 #[get("/auth/github/callback")]
@@ -37,12 +44,8 @@ pub async fn auth_github_callback(
     log::info!("Client ID: {}", client_id);
     log::info!("Client Secret length: {}", client_secret.len());
 
-    // Create a simple HTTP client for token exchange (Octocrab doesn't handle OAuth well)
-    // We need to make a raw request to GitHub's OAuth endpoint
     let client = reqwest::Client::new();
 
-    // The redirect_uri MUST match what was used in the initial authorization request
-    // If not provided, use the default frontend redirect URI
     let redirect_uri = params
         .redirect_uri
         .as_deref()
@@ -99,7 +102,6 @@ pub async fn auth_github_callback(
         .as_object()
         .ok_or_else(|| AppError::InternalError("Invalid OAuth response format".to_string()))?;
 
-    // Check for OAuth errors from GitHub FIRST
     if let Some(error) = oauth.get("error").and_then(|v| v.as_str()) {
         let error_description = oauth
             .get("error_description")
@@ -133,7 +135,6 @@ pub async fn auth_github_callback(
         .await
         .map_err(|e| AppError::InternalError(format!("Failed to fetch GitHub user: {}", e)))?;
 
-    // Create User from GitHub data
     let github_id = gh_user.id.to_string();
     let username = gh_user.login.clone();
     let email = gh_user
@@ -148,10 +149,8 @@ pub async fn auth_github_callback(
         gh_user.name.clone(),
     );
 
-    // Upsert user
     let saved_user = state.user_service.upsert_oauth_user(user).await?;
 
-    // Generate tokens - prefer MongoDB ObjectId as subject when available
     let token = state.jwt_service.create_token(&saved_user)?;
     let subject_id = saved_user
         .id
@@ -161,12 +160,30 @@ pub async fn auth_github_callback(
 
     let refresh_token_str = state.jwt_service.create_refresh_token(&subject_id)?;
 
+    let token_hash = hash_token(&refresh_token_str);
+    let expires_at = Utc::now() + Duration::hours(168);
+    let refresh_token_record = RefreshToken::new(subject_id.clone(), token_hash, expires_at);
+    state
+        .refresh_token_repository
+        .create(refresh_token_record)
+        .await?;
+
+    log::info!("Created refresh token for user: {}", subject_id);
+
+    let full_name = if !saved_user.first_name.is_empty() || !saved_user.last_name.is_empty() {
+        Some(format!("{} {}", saved_user.first_name, saved_user.last_name).trim().to_string())
+    } else {
+        None
+    };
+
     Ok(HttpResponse::Ok().json(AuthResponse {
         token,
         refresh_token: refresh_token_str,
         id: subject_id,
         username: saved_user.username,
         email: saved_user.email,
+        role: format!("{:?}", saved_user.role).to_lowercase(),
+        full_name,
     }))
 }
 
@@ -186,33 +203,94 @@ pub async fn refresh_token(
     state: web::Data<Arc<AppState>>,
     request: web::Json<RefreshTokenRequest>,
 ) -> Result<HttpResponse, AppError> {
-    // Validate refresh token with detailed error messages
-    let refresh_claims = state
+    state
         .jwt_service
         .validate_refresh_token(&request.refresh_token)?;
 
-    // Get full user object from database
+    let token_hash = hash_token(&request.refresh_token);
+
+    let stored_token = state
+        .refresh_token_repository
+        .find_by_token_hash(&token_hash)
+        .await?
+        .ok_or_else(|| {
+            AppError::Unauthorized("Refresh token not found or has been revoked".to_string())
+        })?;
+
+    if !stored_token.is_valid() {
+        return Err(AppError::Unauthorized(
+            "Refresh token has expired or been revoked".to_string(),
+        ));
+    }
+
     let user = state
         .user_service
-        .get_user_for_token(&refresh_claims.sub)
+        .get_user_for_token(&stored_token.user_id)
         .await
         .map_err(|_| {
             AppError::Unauthorized("User associated with refresh token not found".to_string())
         })?;
 
-    // Generate new tokens
-    let new_token = state.jwt_service.create_token(&user)?;
-    let new_refresh_token = state
-        .jwt_service
-        .create_refresh_token(&refresh_claims.sub)?;
+    state
+        .refresh_token_repository
+        .revoke_by_token_hash(&token_hash)
+        .await?;
 
     log::info!(
-        "Token refreshed successfully for user: {}",
-        refresh_claims.sub
+        "Revoked old refresh token for user: {}",
+        stored_token.user_id
     );
+
+    let subject_id = user
+        .id
+        .as_ref()
+        .map(|oid| oid.to_hex())
+        .unwrap_or_else(|| user.username.clone());
+
+    let new_token = state.jwt_service.create_token(&user)?;
+    let new_refresh_token_str = state.jwt_service.create_refresh_token(&subject_id)?;
+
+    let new_token_hash = hash_token(&new_refresh_token_str);
+    let expires_at = Utc::now() + Duration::hours(168);
+    let new_refresh_token_record = RefreshToken::new(subject_id.clone(), new_token_hash, expires_at);
+    state
+        .refresh_token_repository
+        .create(new_refresh_token_record)
+        .await?;
+
+    log::info!("Token refreshed successfully for user: {}", subject_id);
 
     Ok(HttpResponse::Ok().json(RefreshTokenResponse {
         token: new_token,
-        refresh_token: new_refresh_token,
+        refresh_token: new_refresh_token_str,
     }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LogoutRequest {
+    pub refresh_token: String,
+}
+
+#[post("/auth/logout")]
+pub async fn logout(
+    state: web::Data<Arc<AppState>>,
+    request: web::Json<LogoutRequest>,
+) -> Result<HttpResponse, AppError> {
+    let token_hash = hash_token(&request.refresh_token);
+
+    match state
+        .refresh_token_repository
+        .revoke_by_token_hash(&token_hash)
+        .await
+    {
+        Ok(()) => {
+            log::info!("Successfully revoked refresh token on logout");
+        }
+        Err(AppError::NotFound(_)) => {
+            log::info!("Refresh token not found on logout (may have already been revoked)");
+        }
+        Err(e) => return Err(e),
+    }
+
+    Ok(HttpResponse::NoContent().finish())
 }
