@@ -13,6 +13,7 @@ pub mod db;
 pub mod errors;
 pub mod graphql;
 pub mod handlers;
+pub mod middleware;
 pub mod models;
 pub mod repositories;
 pub mod services;
@@ -21,6 +22,7 @@ use app_state::AppState;
 use auth::AuthMiddleware;
 use config::Config;
 use graphql::create_schema;
+use middleware::RequestIdMiddleware;
 
 async fn graphql_handler(
     schema: web::Data<graphql::Schema>,
@@ -85,26 +87,31 @@ async fn main() -> std::io::Result<()> {
 
     log::info!("Starting server at http://{}:{}", host, port);
 
+    let cors_origins = config.cors_origins.clone();
+
     HttpServer::new(move || {
+        let mut cors = Cors::default()
+            .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+            .allowed_headers(vec![
+                http::header::AUTHORIZATION,
+                http::header::ACCEPT,
+                http::header::CONTENT_TYPE,
+            ])
+            .expose_headers(vec![http::header::AUTHORIZATION])
+            .max_age(3600)
+            .supports_credentials();
+
+        for origin in &cors_origins {
+            cors = cors.allowed_origin(origin.as_str());
+        }
+
         App::new()
             .app_data(web::Data::new(app_state.clone()))
             .app_data(web::Data::new(schema.clone()))
             .app_data(web::Data::from(jwt_service.clone()))
             .wrap(Logger::default())
-            .wrap(
-                Cors::default()
-                    .allowed_origin("http://localhost:5173")
-                    .allowed_origin("http://localhost:3000")
-                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
-                    .allowed_headers(vec![
-                        http::header::AUTHORIZATION,
-                        http::header::ACCEPT,
-                        http::header::CONTENT_TYPE,
-                    ])
-                    .expose_headers(vec![http::header::AUTHORIZATION])
-                    .max_age(3600)
-                    .supports_credentials(),
-            )
+            .wrap(RequestIdMiddleware)
+            .wrap(cors)
             // Public routes
             .service(handlers::health_check)
             .service(handlers::auth_github_callback)

@@ -20,6 +20,7 @@ pub struct Config {
     pub func_enums_embed_path: String,
     pub openai_api_key: SecretString,
     pub openai_base_url: String,
+    pub cors_origins: Vec<String>,
 }
 
 impl Config {
@@ -72,6 +73,12 @@ impl Config {
             ),
             openai_base_url: env::var("OPENAI_BASE_URL")
                 .unwrap_or_else(|_| "http://localhost:1234".to_string()),
+            cors_origins: env::var("CORS_ORIGINS")
+                .unwrap_or_else(|_| "http://localhost:5173,http://localhost:3000".to_string())
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect(),
         }
     }
 
@@ -163,6 +170,10 @@ impl Config {
             func_enums_embed_path: "http://localhost:1234".to_string(),
             openai_api_key: SecretString::from("sk-test-key".to_string()),
             openai_base_url: "http://localhost:1234".to_string(),
+            cors_origins: vec![
+                "http://localhost:5173".to_string(),
+                "http://localhost:3000".to_string(),
+            ],
         }
     }
 }
