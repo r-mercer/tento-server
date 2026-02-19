@@ -1,4 +1,4 @@
 pub mod helpers;
-pub mod schema;
+pub mod schema_impl;
 
-pub use schema::{create_schema, Schema};
+pub use schema_impl::{create_schema, MutationRoot, QueryRoot, Schema};

@@ -1,4 +1,4 @@
-use async_graphql::{Context, EmptySubscription, Object, Schema as GraphQLSchema, ID};
+use async_graphql::{Context, Object, ID};
 
 use crate::{
     app_state::AppState,
@@ -10,21 +10,12 @@ use crate::{
     graphql::helpers::{parse_id, validate_quiz_available_for_taking},
     models::{
         domain::Quiz,
-        dto::{
-            request::{
-                CreateUserRequestDto, SubmitQuizAttemptInput, UpdateQuizInput, UpdateUserRequestDto,
-            },
-            response::{
-                CreateUserResponse, DeleteUserResponse, PaginatedResponseQuizAttempt,
-                PaginatedResponseUserDto, PaginationMetadata, QuizAttemptResponse,
-                QuizAttemptReview, QuizForTaking, UpdateUserResponse, UserDto,
-            },
+        dto::response::{
+            PaginatedResponseQuizAttempt, PaginatedResponseUserDto, PaginationMetadata,
+            QuizAttemptResponse, QuizAttemptReview, QuizForTaking, UserDto,
         },
     },
-    services::quiz_attempt_service::QuizAttemptService,
 };
-
-pub type Schema = GraphQLSchema<QueryRoot, MutationRoot, EmptySubscription>;
 
 pub struct QueryRoot;
 
@@ -76,7 +67,6 @@ impl QueryRoot {
         Ok(quiz)
     }
 
-    // Get quiz for taking (without answers)
     async fn quiz_for_taking(&self, ctx: &Context<'_>, id: ID) -> AppResult<QuizForTaking> {
         let state = ctx.data::<AppState>()?;
         extract_claims_from_context(ctx)?;
@@ -90,7 +80,6 @@ impl QueryRoot {
         Ok(QuizForTaking::from_quiz(quiz))
     }
 
-    // Get quiz for results (with answers)
     async fn quiz_for_results(&self, ctx: &Context<'_>, id: ID) -> AppResult<Quiz> {
         let state = ctx.data::<AppState>()?;
         let claims = extract_claims_from_context(ctx)?;
@@ -99,20 +88,17 @@ impl QueryRoot {
         let quiz_dto = state.quiz_service.get_quiz(&quiz_id).await?;
         let user_id = claims.sub.clone();
 
-        // Check if user has attempted this quiz
         let has_attempted = state
             .quiz_attempt_repository
             .has_user_attempted_quiz(&user_id, &quiz_id)
             .await?;
 
-        // Authorization: User created quiz OR has attempted it
         can_view_quiz_results(&user_id, &quiz_dto.created_by_user_id, has_attempted)?;
 
         let quiz: Quiz = quiz_dto.try_into()?;
         Ok(quiz)
     }
 
-    // List all quizzes (paginated)
     async fn quizzes(
         &self,
         ctx: &Context<'_>,
@@ -121,7 +107,6 @@ impl QueryRoot {
     ) -> AppResult<Vec<Quiz>> {
         let state = ctx.data::<AppState>()?;
 
-        // require authentication
         extract_claims_from_context(ctx)?;
 
         let offset = offset.unwrap_or(0).max(0);
@@ -137,7 +122,6 @@ impl QueryRoot {
         Ok(quizzes)
     }
 
-    // List quizzes created by a specific user
     async fn user_quizzes(
         &self,
         ctx: &Context<'_>,
@@ -147,10 +131,8 @@ impl QueryRoot {
     ) -> AppResult<Vec<Quiz>> {
         let state = ctx.data::<AppState>()?;
 
-        // require authentication
         extract_claims_from_context(ctx)?;
 
-        // Accept any user identifier (UUID, ObjectId hex, or username) for filtering
         let user_id_str = user_id.to_string();
 
         let offset = offset.unwrap_or(0).max(0);
@@ -169,7 +151,6 @@ impl QueryRoot {
         Ok(quizzes)
     }
 
-    // Get user's quiz attempts
     async fn quiz_attempts(
         &self,
         ctx: &Context<'_>,
@@ -207,7 +188,6 @@ impl QueryRoot {
         })
     }
 
-    // Get single quiz attempt with details
     async fn quiz_attempt(
         &self,
         ctx: &Context<'_>,
@@ -225,14 +205,12 @@ impl QueryRoot {
             .await?
             .ok_or(AppError::NotFound("Quiz attempt not found".to_string()))?;
 
-        // Authorization: User must own the attempt
         can_view_quiz_attempt(&user_id, &attempt.user_id)?;
 
         let quiz_dto = state.quiz_service.get_quiz(&attempt.quiz_id).await?;
 
         let quiz: Quiz = quiz_dto.try_into()?;
 
-        // Build question results
         let question_results = attempt
             .question_answers
             .iter()
@@ -250,7 +228,6 @@ impl QueryRoot {
                     .map(|opt| opt.id.clone())
                     .collect();
 
-                // Get explanation from first explanation available
                 let explanation = question
                     .options
                     .iter()
@@ -275,129 +252,4 @@ impl QueryRoot {
             question_results,
         })
     }
-}
-
-pub struct MutationRoot;
-
-#[Object]
-impl MutationRoot {
-    async fn create_user(
-        &self,
-        ctx: &Context<'_>,
-        input: CreateUserRequestDto,
-    ) -> AppResult<CreateUserResponse> {
-        let state = ctx.data::<AppState>()?;
-
-        extract_claims_from_context(ctx)?;
-
-        state.user_service.create_user(input).await
-    }
-
-    async fn update_user(
-        &self,
-        ctx: &Context<'_>,
-        username: String,
-        input: UpdateUserRequestDto,
-    ) -> AppResult<UpdateUserResponse> {
-        let state = ctx.data::<AppState>()?;
-        let claims = extract_claims_from_context(ctx)?;
-
-        require_owner_or_admin(&claims, &username)?;
-
-        state.user_service.update_user(&username, input).await
-    }
-
-    async fn delete_user(
-        &self,
-        ctx: &Context<'_>,
-        username: String,
-    ) -> AppResult<DeleteUserResponse> {
-        let state = ctx.data::<AppState>()?;
-        let claims = extract_claims_from_context(ctx)?;
-
-        require_owner_or_admin(&claims, &username)?;
-
-        state.user_service.delete_user(&username).await
-    }
-
-    // Submit quiz attempt
-    async fn submit_quiz_attempt(
-        &self,
-        ctx: &Context<'_>,
-        input: SubmitQuizAttemptInput,
-    ) -> AppResult<QuizAttemptResponse> {
-        let state = ctx.data::<AppState>()?;
-        let claims = extract_claims_from_context(ctx)?;
-
-        // `claims.sub` contains the user id (MongoDB ObjectId hex or fallback username).
-        // Do not validate it as a UUID here; use as-is for DB user references.
-        let user_id = claims.sub.clone();
-        let quiz_id = parse_id(&input.quiz_id)?;
-
-        // Fetch quiz
-        let quiz_dto = state.quiz_service.get_quiz(&quiz_id).await?;
-        let quiz: Quiz = quiz_dto.try_into()?;
-
-        // Check attempt limit
-        let attempt_count = state
-            .quiz_attempt_repository
-            .count_user_attempts(&user_id, &quiz_id)
-            .await?;
-
-        if attempt_count >= quiz.attempt_limit as usize {
-            return Err(AppError::BadRequest(format!(
-                "Quiz attempt limit ({}) reached",
-                quiz.attempt_limit
-            )));
-        }
-
-        // Grade the attempt
-        let (points_earned, question_answers) =
-            QuizAttemptService::grade_attempt(&quiz, &input.answers)?;
-
-        // Determine if passed
-        let _passed = points_earned >= quiz.required_score;
-
-        // Create and persist attempt
-        let attempt = QuizAttemptService::create_attempt(
-            &user_id,
-            &quiz_id,
-            points_earned,
-            quiz.question_count,
-            (attempt_count + 1) as i16,
-            quiz.required_score,
-            question_answers,
-        );
-
-        let attempt = state.quiz_attempt_repository.create(attempt).await?;
-
-        Ok(QuizAttemptResponse::from(attempt))
-    }
-
-    // Update quiz (partial update)
-    async fn update_quiz(&self, ctx: &Context<'_>, input: UpdateQuizInput) -> AppResult<Quiz> {
-        let state = ctx.data::<AppState>()?;
-        let claims = extract_claims_from_context(ctx)?;
-
-        // Fetch existing quiz to check ownership
-        let existing_quiz = state.quiz_service.get_quiz(&input.id).await?;
-
-        require_owner_or_admin(&claims, &existing_quiz.created_by_user_id)?;
-
-        let updated_quiz = state.quiz_service.update_quiz_partial(input).await?;
-
-        updated_quiz.try_into()
-    }
-}
-
-pub fn create_schema(app_state: AppState) -> Schema {
-    GraphQLSchema::build(QueryRoot, MutationRoot, EmptySubscription)
-        .data(app_state)
-        .finish()
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_schema_creation() {}
 }
