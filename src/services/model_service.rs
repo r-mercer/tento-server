@@ -88,7 +88,12 @@ impl ModelService {
         Ok(content)
     }
 
-    pub async fn website_summariser(&self, url_string: &str) -> AppResult<String> {
+    pub async fn website_summariser(&self, url_string: &str, question_count: Option<i16>) -> AppResult<String> {
+        let mut user_message = format!("URL: {}", url_string);
+        if let Some(count) = question_count {
+            user_message.push_str(&format!("\nQuestion Count: {}", count));
+        }
+        
         let response: Value = self
             .client
             .chat()
@@ -100,7 +105,7 @@ impl ModelService {
                     },
                     {
                         "role": "user",
-                        "content": url_string
+                        "content": user_message
                     }
                 ],
                 "model": "liquid/lfm2-1.2b",

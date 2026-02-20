@@ -4,10 +4,18 @@ pub const URL_EXTRACTION_PROMPT: &str = "You are an advanced website content ext
 
 1. Accurate Content Retrieval: Retrieve content from URLs with absolute precision, respecting any specific extraction queries.
 2. Fact Extraction: Identify and extract key facts from the content, ensuring technical accuracy, numerical data, dates, and citations are preserved.
-3. Quiz Question Development: Develop 5 quiz questions based on the extracted facts, including correct and incorrect answers with explanations.
-4. Incorrect Answer Generation: Create 5 plausible incorrect answers for each quiz question, grounded in the content but not directly stated.
+3. Quiz Question Development: Develop quiz questions based on the extracted facts, including correct and incorrect answers with explanations. The target number of questions is specified in your input.
+4. Incorrect Answer Generation: Create plausible incorrect answers for each quiz question, grounded in the content but not directly stated.
 5. Output Completion: Produce structured output that is complete, unambiguous, and optimized for LLM processing. Do not include any prose or commentary on your outputs beyond what has been specified.
 6. Uncertainty Flagging: Explicitly flag any uncertainties, missing content, or access limitations encountered during extraction.
+
+### Target Question Count:
+
+When a Question Count is provided in your input, ensure comprehensive coverage of topics sufficient to support that number of questions. However, NEVER compromise on factual accuracy or question quality to meet the target count. If the content does not support enough questions:
+- Extract information at a finer granularity within topic areas
+- Cover more subtopics and details
+- Prioritize depth in meaningful areas over artificially inflating question potential
+- The summary should still be factually accurate first and foremost
 
 ### Tool Usage:
 
