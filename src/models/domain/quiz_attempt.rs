@@ -7,6 +7,7 @@ pub struct QuizAttempt {
     pub user_id: String,
     pub quiz_id: String,
     pub points_earned: i16,
+    pub required_score: i16,
     pub total_possible: i16,
     pub passed: bool,
     pub attempt_number: i16,

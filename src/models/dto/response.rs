@@ -150,10 +150,6 @@ pub struct PaginatedUserResponse {
 
 pub type PaginatedResponseUserDto = PaginatedUserResponse;
 
-// ============================================================================
-// Quiz DTOs for Answer Visibility Control
-// ============================================================================
-
 #[derive(Debug, Clone, Serialize, SimpleObject)]
 pub struct QuizQuestionOptionForTaking {
     pub id: String,
@@ -226,6 +222,7 @@ pub struct QuizAttemptResponse {
     pub quiz_id: String,
     pub points_earned: i16,
     pub total_possible: i16,
+    pub required_score: i16,
     pub passed: bool,
     pub attempt_number: i16,
     pub submitted_at: DateTime<Utc>,
@@ -237,6 +234,7 @@ impl From<QuizAttempt> for QuizAttemptResponse {
             id: attempt.id,
             quiz_id: attempt.quiz_id,
             points_earned: attempt.points_earned,
+            required_score: attempt.required_score,
             total_possible: attempt.total_possible,
             passed: attempt.passed,
             attempt_number: attempt.attempt_number,

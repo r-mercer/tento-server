@@ -133,6 +133,7 @@ impl QuizAttemptService {
             user_id: user_id.to_string(),
             quiz_id: quiz_id.to_string(),
             points_earned,
+            required_score,
             total_possible,
             passed,
             attempt_number,
