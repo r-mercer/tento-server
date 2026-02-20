@@ -8,12 +8,10 @@ use chrono::Utc;
 pub struct QuizAttemptService;
 
 impl QuizAttemptService {
-    /// Grade a quiz attempt based on submitted answers
     pub fn grade_attempt(
         quiz: &Quiz,
         submitted_answers: &[QuestionAnswerInput],
     ) -> AppResult<(i16, Vec<QuizAttemptQuestion>)> {
-        // Validate all submitted question IDs exist in the quiz
         let question_map: std::collections::HashMap<&str, &QuizQuestion> = quiz
             .questions
             .as_ref()
@@ -48,12 +46,10 @@ impl QuizAttemptService {
         for submitted_answer in submitted_answers {
             let question_id = &submitted_answer.question_id;
 
-            // Find question
             let question = question_map
                 .get(question_id.as_str())
                 .ok_or(AppError::NotFound("Question not found".to_string()))?;
 
-            // Grade this question
             let (is_correct, points) =
                 Self::grade_question(question, submitted_answer.selected_option_ids.clone())?;
 
@@ -71,7 +67,6 @@ impl QuizAttemptService {
         Ok((total_points, question_results))
     }
 
-    /// Grade an individual question based on type
     fn grade_question(
         question: &QuizQuestion,
         selected_option_ids: Vec<String>,
