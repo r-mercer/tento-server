@@ -144,3 +144,231 @@ impl QuizAttemptService {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::models::{
+        domain::{
+            quiz::QuizStatus,
+            quiz_question::{QuizQuestionOption, QuizQuestionType},
+        },
+        dto::request::QuestionAnswerInput,
+    };
+
+    use super::*;
+
+    fn make_option(id: &str, correct: bool) -> QuizQuestionOption {
+        QuizQuestionOption {
+            id: id.to_string(),
+            text: format!("Option {}", id),
+            correct,
+            explanation: "test explanation".to_string(),
+        }
+    }
+
+    fn make_question(
+        id: &str,
+        question_type: QuizQuestionType,
+        options: Vec<QuizQuestionOption>,
+    ) -> QuizQuestion {
+        QuizQuestion {
+            id: id.to_string(),
+            title: format!("Question {}", id),
+            description: "test question".to_string(),
+            question_type,
+            option_count: options.len() as i16,
+            options,
+            order: 1,
+            attempt_limit: 1,
+            topic: "test-topic".to_string(),
+            created_at: None,
+            modified_at: None,
+        }
+    }
+
+    fn make_quiz_with_questions(questions: Vec<QuizQuestion>) -> Quiz {
+        Quiz {
+            id: "quiz-1".to_string(),
+            name: "Test Quiz".to_string(),
+            created_by_user_id: "user-1".to_string(),
+            title: None,
+            description: None,
+            question_count: questions.len() as i16,
+            required_score: 1,
+            attempt_limit: 3,
+            topic: None,
+            status: QuizStatus::Ready,
+            questions: Some(questions),
+            url: "https://example.com".to_string(),
+            created_at: None,
+            modified_at: None,
+        }
+    }
+
+    #[test]
+    fn grade_attempt_returns_point_for_correct_single_answer() {
+        let question = make_question(
+            "q1",
+            QuizQuestionType::Single,
+            vec![make_option("o1", true), make_option("o2", false)],
+        );
+        let quiz = make_quiz_with_questions(vec![question]);
+        let submitted_answers = vec![QuestionAnswerInput {
+            question_id: "q1".to_string(),
+            selected_option_ids: vec!["o1".to_string()],
+        }];
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &submitted_answers);
+
+        assert!(result.is_ok());
+        let (total_points, question_results) = result.expect("grading should succeed");
+        assert_eq!(total_points, 1);
+        assert_eq!(question_results.len(), 1);
+        assert!(question_results[0].is_correct);
+        assert_eq!(question_results[0].points_earned, 1);
+    }
+
+    #[test]
+    fn grade_attempt_returns_zero_for_incorrect_single_answer() {
+        let question = make_question(
+            "q1",
+            QuizQuestionType::Single,
+            vec![make_option("o1", true), make_option("o2", false)],
+        );
+        let quiz = make_quiz_with_questions(vec![question]);
+        let submitted_answers = vec![QuestionAnswerInput {
+            question_id: "q1".to_string(),
+            selected_option_ids: vec!["o2".to_string()],
+        }];
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &submitted_answers);
+
+        assert!(result.is_ok());
+        let (total_points, question_results) = result.expect("grading should succeed");
+        assert_eq!(total_points, 0);
+        assert_eq!(question_results.len(), 1);
+        assert!(!question_results[0].is_correct);
+        assert_eq!(question_results[0].points_earned, 0);
+    }
+
+    #[test]
+    fn grade_attempt_returns_zero_for_multi_partial_credit_scenario() {
+        let question = make_question(
+            "q1",
+            QuizQuestionType::Multi,
+            vec![
+                make_option("o1", true),
+                make_option("o2", true),
+                make_option("o3", false),
+            ],
+        );
+        let quiz = make_quiz_with_questions(vec![question]);
+        let submitted_answers = vec![QuestionAnswerInput {
+            question_id: "q1".to_string(),
+            selected_option_ids: vec!["o1".to_string()],
+        }];
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &submitted_answers);
+
+        assert!(result.is_ok());
+        let (total_points, question_results) = result.expect("grading should succeed");
+        assert_eq!(total_points, 0);
+        assert_eq!(question_results.len(), 1);
+        assert!(!question_results[0].is_correct);
+        assert_eq!(question_results[0].points_earned, 0);
+    }
+
+    #[test]
+    fn grade_attempt_returns_error_for_unknown_question_id() {
+        let question = make_question(
+            "q1",
+            QuizQuestionType::Single,
+            vec![make_option("o1", true), make_option("o2", false)],
+        );
+        let quiz = make_quiz_with_questions(vec![question]);
+        let submitted_answers = vec![QuestionAnswerInput {
+            question_id: "missing-question".to_string(),
+            selected_option_ids: vec!["o1".to_string()],
+        }];
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &submitted_answers);
+
+        assert!(result.is_err());
+        match result.expect_err("expected bad request error") {
+            AppError::BadRequest(msg) => assert!(msg.contains("Question 'missing-question' not found")),
+            other => panic!("expected BadRequest, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn grade_attempt_returns_error_for_unknown_option_id() {
+        let question = make_question(
+            "q1",
+            QuizQuestionType::Single,
+            vec![make_option("o1", true), make_option("o2", false)],
+        );
+        let quiz = make_quiz_with_questions(vec![question]);
+        let submitted_answers = vec![QuestionAnswerInput {
+            question_id: "q1".to_string(),
+            selected_option_ids: vec!["missing-option".to_string()],
+        }];
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &submitted_answers);
+
+        assert!(result.is_err());
+        match result.expect_err("expected bad request error") {
+            AppError::BadRequest(msg) => assert!(msg.contains("Option 'missing-option' not found")),
+            other => panic!("expected BadRequest, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn grade_attempt_returns_error_when_quiz_has_no_questions() {
+        let quiz = Quiz {
+            id: "quiz-1".to_string(),
+            name: "No Question Quiz".to_string(),
+            created_by_user_id: "user-1".to_string(),
+            title: None,
+            description: None,
+            question_count: 0,
+            required_score: 1,
+            attempt_limit: 1,
+            topic: None,
+            status: QuizStatus::Ready,
+            questions: None,
+            url: "https://example.com".to_string(),
+            created_at: None,
+            modified_at: None,
+        };
+
+        let submitted_answers = vec![QuestionAnswerInput {
+            question_id: "q1".to_string(),
+            selected_option_ids: vec!["o1".to_string()],
+        }];
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &submitted_answers);
+
+        assert!(result.is_err());
+        match result.expect_err("expected bad request error") {
+            AppError::BadRequest(msg) => assert_eq!(msg, "Quiz has no questions"),
+            other => panic!("expected BadRequest, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn grade_attempt_handles_empty_submitted_answers() {
+        let question = make_question(
+            "q1",
+            QuizQuestionType::Single,
+            vec![make_option("o1", true), make_option("o2", false)],
+        );
+        let quiz = make_quiz_with_questions(vec![question]);
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &[]);
+
+        assert!(result.is_ok());
+        let (total_points, question_results) = result.expect("grading should succeed");
+        assert_eq!(total_points, 0);
+        assert!(question_results.is_empty());
+    }
+}

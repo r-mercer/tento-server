@@ -299,3 +299,88 @@ pub async fn logout(
 
     Ok(HttpResponse::NoContent().finish())
 }
+
+#[cfg(test)]
+mod tests {
+    use actix_web::{test as actix_test, App};
+
+    use super::*;
+
+    #[test]
+    fn callback_params_defaults_redirect_uri_to_none() {
+        let payload = r#"{"code":"oauth-code"}"#;
+        let params: CallbackParams =
+            serde_json::from_str(payload).expect("callback params should deserialize");
+
+        assert_eq!(params.code, "oauth-code");
+        assert!(params.redirect_uri.is_none());
+    }
+
+    #[test]
+    fn auth_response_serializes_expected_fields() {
+        let response = AuthResponse {
+            token: "access-token".to_string(),
+            refresh_token: "refresh-token".to_string(),
+            id: "user-id".to_string(),
+            username: "username".to_string(),
+            email: "user@example.com".to_string(),
+            role: "user".to_string(),
+            full_name: Some("Test User".to_string()),
+        };
+
+        let json = serde_json::to_value(response).expect("response should serialize");
+
+        assert_eq!(json.get("token").and_then(|v| v.as_str()), Some("access-token"));
+        assert_eq!(
+            json.get("refresh_token").and_then(|v| v.as_str()),
+            Some("refresh-token")
+        );
+        assert_eq!(json.get("role").and_then(|v| v.as_str()), Some("user"));
+    }
+
+    #[actix_web::test]
+    async fn refresh_token_route_registered_for_post() {
+        let app = actix_test::init_service(App::new().service(refresh_token)).await;
+
+        let req = actix_test::TestRequest::get().uri("/auth/refresh").to_request();
+        let resp = actix_test::call_service(&app, req).await;
+
+        assert!(resp.status().is_client_error());
+    }
+
+    #[actix_web::test]
+    async fn logout_route_registered_for_post() {
+        let app = actix_test::init_service(App::new().service(logout)).await;
+
+        let req = actix_test::TestRequest::get().uri("/auth/logout").to_request();
+        let resp = actix_test::call_service(&app, req).await;
+
+        assert!(resp.status().is_client_error());
+    }
+
+    #[actix_web::test]
+    async fn refresh_token_without_required_app_data_returns_server_error() {
+        let app = actix_test::init_service(App::new().service(refresh_token)).await;
+
+        let req = actix_test::TestRequest::post()
+            .uri("/auth/refresh")
+            .set_json(serde_json::json!({ "refresh_token": "abc" }))
+            .to_request();
+        let resp = actix_test::call_service(&app, req).await;
+
+        assert!(resp.status().is_server_error());
+    }
+
+    #[actix_web::test]
+    async fn logout_without_required_app_data_returns_server_error() {
+        let app = actix_test::init_service(App::new().service(logout)).await;
+
+        let req = actix_test::TestRequest::post()
+            .uri("/auth/logout")
+            .set_json(serde_json::json!({ "refresh_token": "abc" }))
+            .to_request();
+        let resp = actix_test::call_service(&app, req).await;
+
+        assert!(resp.status().is_server_error());
+    }
+}

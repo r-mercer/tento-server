@@ -231,3 +231,192 @@ fn merge_options(
 
     Ok(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use async_trait::async_trait;
+    use chrono::Utc;
+    use mockall::mock;
+    use std::collections::HashMap;
+
+    use crate::{
+        models::dto::request::QuizDraftDto,
+        repositories::AgentJobRepository,
+        services::agent_orchestrator_service::{AgentJob, JobStatus, JobStep},
+    };
+
+    use super::*;
+
+    mock! {
+        pub QuizRepo {}
+
+        #[async_trait]
+        impl QuizRepository for QuizRepo {
+            async fn find_by_id(&self, id: &str) -> AppResult<Option<Quiz>>;
+            async fn list_quizzes(&self, offset: i64, limit: i64) -> AppResult<(Vec<Quiz>, i64)>;
+            async fn list_quizzes_by_user(&self, user_id: &str, offset: i64, limit: i64) -> AppResult<(Vec<Quiz>, i64)>;
+            async fn get_by_status_by_id(&self, id: &str, status: &str) -> AppResult<Option<Quiz>>;
+            async fn create_quiz_draft(&self, quiz: Quiz) -> AppResult<Quiz>;
+            async fn update(&self, quiz: Quiz) -> AppResult<Quiz>;
+        }
+    }
+
+    mock! {
+        pub AgentJobRepo {}
+
+        #[async_trait]
+        impl AgentJobRepository for AgentJobRepo {
+            async fn create_job(&self, steps: Vec<JobStep>) -> Result<String, String>;
+            async fn get_job(&self, job_id: &str) -> Result<Option<AgentJob>, String>;
+            async fn get_job_status(&self, job_id: &str) -> Result<Option<JobStatus>, String>;
+            async fn start_job(&self, job_id: &str) -> Result<(), String>;
+            async fn complete_step(&self, job_id: &str, result: Option<serde_json::Value>) -> Result<(), String>;
+            async fn fail_step(&self, job_id: &str, error: String) -> Result<(), String>;
+            async fn pause_job(&self, job_id: &str) -> Result<(), String>;
+            async fn resume_job(&self, job_id: &str) -> Result<(), String>;
+            async fn list_jobs(&self, status_filter: Option<JobStatus>) -> Result<Vec<AgentJob>, String>;
+            async fn delete_job(&self, job_id: &str) -> Result<(), String>;
+            async fn save(&self, job: &AgentJob) -> Result<(), String>;
+        }
+    }
+
+    fn create_service(mock_repo: MockQuizRepo, mock_job_repo: MockAgentJobRepo) -> QuizService {
+        let orchestrator = AgentOrchestrator::new(Arc::new(mock_job_repo));
+        QuizService::new(Arc::new(mock_repo), Arc::new(orchestrator))
+    }
+
+    fn make_test_quiz(name: &str, created_by_user_id: &str) -> Quiz {
+        Quiz::new_draft(name, created_by_user_id, 5, 70, 3, "https://example.com")
+    }
+
+    #[tokio::test]
+    async fn get_quiz_returns_not_found_for_invalid_id() {
+        let mut mock_repo = MockQuizRepo::new();
+        let mock_job_repo = MockAgentJobRepo::new();
+
+        mock_repo.expect_find_by_id().returning(|_| Ok(None));
+
+        let service = create_service(mock_repo, mock_job_repo);
+        let result = service.get_quiz("missing-id").await;
+
+        assert!(result.is_err());
+        match result.expect_err("expected not found") {
+            AppError::NotFound(msg) => assert!(msg.contains("Quiz with id 'missing-id' not found")),
+            other => panic!("expected NotFound, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn list_quizzes_returns_paginated_results() {
+        let mut mock_repo = MockQuizRepo::new();
+        let mock_job_repo = MockAgentJobRepo::new();
+
+        mock_repo.expect_list_quizzes().returning(|offset, limit| {
+            assert_eq!(offset, 10);
+            assert_eq!(limit, 5);
+            Ok((
+                vec![
+                    make_test_quiz("quiz-1", "user-a"),
+                    make_test_quiz("quiz-2", "user-b"),
+                ],
+                12,
+            ))
+        });
+
+        let service = create_service(mock_repo, mock_job_repo);
+        let result = service.list_quizzes(10, 5).await.expect("expected success");
+
+        let (quizzes, total) = result;
+        assert_eq!(total, 12);
+        assert_eq!(quizzes.len(), 2);
+        assert_eq!(quizzes[0].name, "quiz-1");
+        assert_eq!(quizzes[1].name, "quiz-2");
+    }
+
+    #[tokio::test]
+    async fn list_quizzes_by_user_returns_user_filtered_results() {
+        let mut mock_repo = MockQuizRepo::new();
+        let mock_job_repo = MockAgentJobRepo::new();
+
+        mock_repo
+            .expect_list_quizzes_by_user()
+            .returning(|user_id, offset, limit| {
+                assert_eq!(user_id, "user-123");
+                assert_eq!(offset, 0);
+                assert_eq!(limit, 20);
+                Ok((vec![make_test_quiz("user-quiz", "user-123")], 1))
+            });
+
+        let service = create_service(mock_repo, mock_job_repo);
+        let result = service
+            .list_quizzes_by_user("user-123", 0, 20)
+            .await
+            .expect("expected success");
+
+        let (quizzes, total) = result;
+        assert_eq!(total, 1);
+        assert_eq!(quizzes.len(), 1);
+        assert_eq!(quizzes[0].created_by_user_id, "user-123");
+    }
+
+    #[tokio::test]
+    async fn create_quiz_draft_persists_quiz_and_starts_job_flow() {
+        let mut mock_repo = MockQuizRepo::new();
+        let mut mock_job_repo = MockAgentJobRepo::new();
+
+        mock_repo.expect_create_quiz_draft().returning(|quiz| Ok(quiz));
+
+        mock_job_repo.expect_create_job().returning(|steps| {
+            assert!(!steps.is_empty());
+            Ok("job-123".to_string())
+        });
+
+        mock_job_repo.expect_get_job().returning(|job_id| {
+            assert_eq!(job_id, "job-123");
+            Ok(Some(AgentJob {
+                id: Some("job-123".to_string()),
+                job_id: "job-123".to_string(),
+                status: JobStatus::Pending,
+                steps: vec![JobStep::new("extract_content")],
+                current_step_index: 0,
+                results: HashMap::new(),
+                error_message: None,
+                created_at: Utc::now(),
+                started_at: None,
+                completed_at: None,
+                retries_remaining: 3,
+            }))
+        });
+
+        mock_job_repo.expect_save().returning(|job| {
+            assert_eq!(job.job_id, "job-123");
+            assert!(job.results.contains_key("quiz_id"));
+            Ok(())
+        });
+
+        mock_job_repo.expect_start_job().returning(|job_id| {
+            assert_eq!(job_id, "job-123");
+            Ok(())
+        });
+
+        let service = create_service(mock_repo, mock_job_repo);
+
+        let request = QuizDraftDto {
+            name: "Draft Quiz".to_string(),
+            question_count: 8,
+            required_score: 75,
+            attempt_limit: 3,
+            url: "https://example.com/learning".to_string(),
+        };
+
+        let result = service
+            .create_quiz_draft(request, "user-abc")
+            .await
+            .expect("expected draft creation to succeed");
+
+        assert_eq!(result.data.job_id, "job-123");
+        assert_eq!(result.data.quiz.name, "Draft Quiz");
+        assert_eq!(result.data.quiz.created_by_user_id, "user-abc");
+        assert_eq!(result.message, "Draft created successfully and processing started");
+    }
+}

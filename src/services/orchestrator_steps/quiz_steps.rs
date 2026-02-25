@@ -44,3 +44,56 @@ fn finalize_quiz_step() -> JobStep {
         .with_max_retries(FINALIZATION_RETRIES)
         .with_timeout(FINALIZATION_TIMEOUT)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_quiz_generation_steps_returns_expected_order() {
+        let steps = create_quiz_generation_steps();
+
+        let names: Vec<&str> = steps.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec![
+                "create_quiz_draft",
+                "create_summary_document",
+                "create_quiz_questions",
+                "finalize_quiz"
+            ]
+        );
+    }
+
+    #[test]
+    fn create_quiz_generation_steps_has_expected_retries_and_timeouts() {
+        let steps = create_quiz_generation_steps();
+
+        assert_eq!(steps[0].max_retries, DEFAULT_RETRIES);
+        assert_eq!(steps[0].timeout_seconds, Some(DRAFT_CREATION_TIMEOUT));
+
+        assert_eq!(steps[1].max_retries, DEFAULT_RETRIES);
+        assert_eq!(steps[1].timeout_seconds, Some(SUMMARY_FETCH_TIMEOUT));
+
+        assert_eq!(steps[2].max_retries, DEFAULT_RETRIES);
+        assert_eq!(steps[2].timeout_seconds, Some(QUIZ_GENERATION_TIMEOUT));
+
+        assert_eq!(steps[3].max_retries, FINALIZATION_RETRIES);
+        assert_eq!(steps[3].timeout_seconds, Some(FINALIZATION_TIMEOUT));
+    }
+
+    #[test]
+    fn create_quiz_generation_steps_have_descriptions_and_unique_ids() {
+        let steps = create_quiz_generation_steps();
+
+        let mut ids: Vec<&str> = steps.iter().map(|s| s.id.as_str()).collect();
+        let original_len = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+
+        assert_eq!(ids.len(), original_len);
+        assert!(steps
+            .iter()
+            .all(|step| step.description.as_ref().is_some_and(|d| !d.is_empty())));
+    }
+}

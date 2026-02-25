@@ -75,3 +75,42 @@ impl Quiz {
         quiz
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quiz_status_serializes_and_deserializes() {
+        let status = QuizStatus::Ready;
+        let json = serde_json::to_string(&status).expect("status should serialize");
+        let parsed: QuizStatus = serde_json::from_str(&json).expect("status should deserialize");
+
+        assert_eq!(status, parsed);
+    }
+
+    #[test]
+    fn new_draft_initializes_expected_defaults() {
+        let quiz = Quiz::new_draft("Rust Basics", "user-1", 10, 80, 2, "https://example.com/rust");
+
+        assert_eq!(quiz.name, "Rust Basics");
+        assert_eq!(quiz.created_by_user_id, "user-1");
+        assert_eq!(quiz.question_count, 10);
+        assert_eq!(quiz.required_score, 80);
+        assert_eq!(quiz.attempt_limit, 2);
+        assert_eq!(quiz.status, QuizStatus::Draft);
+        assert!(quiz.title.is_none());
+        assert!(quiz.description.is_none());
+        assert!(quiz.questions.is_none());
+        assert!(quiz.created_at.is_some());
+        assert!(quiz.modified_at.is_some());
+    }
+
+    #[test]
+    fn test_quiz_with_title_sets_title_and_description() {
+        let quiz = Quiz::test_quiz_with_title("Name", "user-1", "Title", "Description");
+
+        assert_eq!(quiz.title.as_deref(), Some("Title"));
+        assert_eq!(quiz.description.as_deref(), Some("Description"));
+    }
+}
