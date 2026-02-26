@@ -36,6 +36,8 @@ pub struct ModelService {
 const TOOL_MAX_ATTEMPTS: u32 = 12;
 const TOOL_MAX_CONTENT_LENGTH: usize = 20000;
 const STRUCTURED_OUTPUT_MAX_TOKENS: u32 = 12288;
+const DEFAULT_MODEL: &str = "mistralai/ministral-3-3b";
+const DEFAULT_CONTEXT_LENGTH: u32 = 16384; // Context window size for the default model
 
 #[derive(Debug, Deserialize)]
 struct FetchWebpageArgs {
@@ -108,7 +110,7 @@ impl ModelService {
                         "content": user_message
                     }
                 ],
-                "model": "liquid/lfm2-1.2b",
+                "model": DEFAULT_MODEL,
                 "store": false
             }))
             .await?;
@@ -147,23 +149,15 @@ impl ModelService {
                         "content": summary_json
                     }
                 ],
-                "model": "liquid/lfm2-1.2b",
+                "model": DEFAULT_MODEL,
                 "store": false
             }))
             .await?;
-
-        // if let Some(content) = response.output_text().to_string() {
-        // Ok(response.output_text())
-        // response["choices"][0]["message"]["content"].as_str()
-        // let content = response["choices"][0]["message"]["content"]
-
-        // println!("response-content: {}", content);
 
         let content = response["choices"][0]["message"]["content"].to_string();
         log::debug!("quiz_generator content length: {}", content.len());
 
         Ok(content)
-        // Ok(response["choices"][0]["message"]["content"].to_string())
     }
 
     pub async fn structured_quiz_generator(
@@ -255,7 +249,7 @@ impl ModelService {
 
         let request = CreateChatCompletionRequestArgs::default()
             .max_tokens(STRUCTURED_OUTPUT_MAX_TOKENS)
-            .model("liquid/lfm2-1.2b")
+            .model(DEFAULT_MODEL)
             .messages(messages)
             .response_format(response_format)
             .build()?;
@@ -312,7 +306,7 @@ impl ModelService {
 
             let request = CreateChatCompletionRequestArgs::default()
                 .max_tokens(STRUCTURED_OUTPUT_MAX_TOKENS)
-                .model("liquid/lfm2-1.2b")
+                .model(DEFAULT_MODEL)
                 .messages(messages.clone())
                 .response_format(response_format)
                 .tools(tools.clone())
