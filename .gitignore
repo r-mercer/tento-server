@@ -17,5 +17,6 @@ target
 .env*
 !.env.example
 
+.github
 .vscode/
 .models/
