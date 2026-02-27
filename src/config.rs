@@ -1,6 +1,8 @@
 use secrecy::SecretString;
 use std::env;
 
+use crate::errors::{AppError, AppResult};
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub mongo_conn_string: String,
@@ -83,7 +85,7 @@ impl Config {
     }
 
     // Copilot validation rules
-    pub fn validate_for_production(&self) {
+    pub fn validate_for_production(&self) -> AppResult<()> {
         use secrecy::ExposeSecret;
 
         let jwt_secret = self.jwt_secret.expose_secret();
@@ -91,9 +93,9 @@ impl Config {
         let openai_key = self.openai_api_key.expose_secret();
 
         if jwt_secret == "dev_secret_key_change_in_production" {
-            panic!(
-                "FATAL: JWT_SECRET is using default value! Set JWT_SECRET environment variable to a secure random string."
-            );
+            return Err(AppError::ValidationError(
+                "FATAL: JWT_SECRET is using default value! Set JWT_SECRET environment variable to a secure random string.".to_string(),
+            ));
         }
 
         // if jwt_secret.len() < 32 {
@@ -104,50 +106,64 @@ impl Config {
         // }
 
         if gh_secret == "gh_client_secret" {
-            panic!(
-                "FATAL: GH_CLIENT_SECRET is using default value! Set GH_CLIENT_SECRET environment variable."
-            );
+            return Err(AppError::ValidationError(
+                "FATAL: GH_CLIENT_SECRET is using default value! Set GH_CLIENT_SECRET environment variable.".to_string(),
+            ));
         }
 
         if self.gh_client_id == "gh_client_id" {
-            panic!(
-                "FATAL: GH_CLIENT_ID is using default value! Set GH_CLIENT_ID environment variable."
-            );
+            return Err(AppError::ValidationError(
+                "FATAL: GH_CLIENT_ID is using default value! Set GH_CLIENT_ID environment variable.".to_string(),
+            ));
         }
 
         if openai_key == "sk-default-key" {
-            panic!(
-                "FATAL: OPENAI_API_KEY is using default value! Set OPENAI_API_KEY environment variable."
-            );
+            return Err(AppError::ValidationError(
+                "FATAL: OPENAI_API_KEY is using default value! Set OPENAI_API_KEY environment variable.".to_string(),
+            ));
         }
 
         if self.func_enums_max_response_tokens == 0 {
-            panic!("FATAL: FUNC_ENUMS_MAX_RESPONSE_TOKENS must be greater than 0.");
+            return Err(AppError::ValidationError(
+                "FATAL: FUNC_ENUMS_MAX_RESPONSE_TOKENS must be greater than 0.".to_string(),
+            ));
         }
 
         if self.func_enums_max_request_tokens == 0 {
-            panic!("FATAL: FUNC_ENUMS_MAX_REQUEST_TOKENS must be greater than 0.");
+            return Err(AppError::ValidationError(
+                "FATAL: FUNC_ENUMS_MAX_REQUEST_TOKENS must be greater than 0.".to_string(),
+            ));
         }
 
         if self.func_enums_max_func_tokens == 0 {
-            panic!("FATAL: FUNC_ENUMS_MAX_FUNC_TOKENS must be greater than 0.");
+            return Err(AppError::ValidationError(
+                "FATAL: FUNC_ENUMS_MAX_FUNC_TOKENS must be greater than 0.".to_string(),
+            ));
         }
 
         if self.func_enums_embed_model.is_empty() {
-            panic!("FATAL: FUNC_ENUMS_EMBED_MODEL cannot be empty.");
+            return Err(AppError::ValidationError(
+                "FATAL: FUNC_ENUMS_EMBED_MODEL cannot be empty.".to_string(),
+            ));
         }
 
         if !self.func_enums_embed_path.starts_with("http://")
             && !self.func_enums_embed_path.starts_with("https://")
         {
-            panic!("FATAL: FUNC_ENUMS_EMBED_PATH must be a valid HTTP/HTTPS URL.");
+            return Err(AppError::ValidationError(
+                "FATAL: FUNC_ENUMS_EMBED_PATH must be a valid HTTP/HTTPS URL.".to_string(),
+            ));
         }
 
         if !self.openai_base_url.starts_with("http://")
             && !self.openai_base_url.starts_with("https://")
         {
-            panic!("FATAL: OPENAI_BASE_URL must be a valid HTTP/HTTPS URL.");
+            return Err(AppError::ValidationError(
+                "FATAL: OPENAI_BASE_URL must be a valid HTTP/HTTPS URL.".to_string(),
+            ));
         }
+
+        Ok(())
     }
 
     #[cfg(test)]

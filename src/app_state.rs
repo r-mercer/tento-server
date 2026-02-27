@@ -67,8 +67,9 @@ impl AppState {
             refresh_token_repository_mongo;
 
         let jwt_service = Arc::new(JwtService::new(
-            &config.gh_client_secret,
+            &config.jwt_secret,
             config.jwt_expiration_hours,
+            config.jwt_refresh_expiration_hours,
         ));
 
         Ok(Self {

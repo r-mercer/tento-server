@@ -48,7 +48,9 @@ async fn main() -> std::io::Result<()> {
 
     // Panic if secrets aren't set
     if env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string()) != "test" {
-        config.validate_for_production();
+        config.validate_for_production().map_err(|err| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, err.to_string())
+        })?;
         log::info!("Configuration validated successfully");
     }
 

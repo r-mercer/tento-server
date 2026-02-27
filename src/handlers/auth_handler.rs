@@ -35,14 +35,12 @@ pub async fn auth_github_callback(
     web::Query(params): web::Query<CallbackParams>,
 ) -> Result<HttpResponse, AppError> {
     log::info!("=== GitHub OAuth Callback Started ===");
-    log::info!("Code: {}", params.code);
     log::info!("Redirect URI: {:?}", params.redirect_uri);
 
     let client_id = &state.config.gh_client_id;
     let client_secret = state.config.gh_client_secret.expose_secret();
 
-    log::info!("Client ID: {}", client_id);
-    log::info!("Client Secret length: {}", client_secret.len());
+    log::info!("Client ID configured for GitHub OAuth callback");
 
     let client = reqwest::Client::new();
 
@@ -52,18 +50,6 @@ pub async fn auth_github_callback(
         .unwrap_or("http://localhost:5173/auth/callback");
 
     log::info!("Using redirect_uri: {}", redirect_uri);
-
-    let request_body = serde_json::json!({
-        "code": params.code,
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": redirect_uri,
-    });
-
-    log::info!(
-        "GitHub request body (JSON): {}",
-        serde_json::to_string_pretty(&request_body).unwrap()
-    );
 
     let token_response = client
         .post("https://github.com/login/oauth/access_token")
@@ -88,7 +74,6 @@ pub async fn auth_github_callback(
         .unwrap_or_else(|_| "Could not read response body".to_string());
 
     log::info!("GitHub token exchange response status: {}", status);
-    log::info!("GitHub token exchange response body: {}", response_text);
 
     let oauth = serde_json::from_str::<serde_json::Value>(&response_text).map_err(|e| {
         log::error!("Failed to parse GitHub response: {}", e);
@@ -161,7 +146,7 @@ pub async fn auth_github_callback(
     let refresh_token_str = state.jwt_service.create_refresh_token(&subject_id)?;
 
     let token_hash = hash_token(&refresh_token_str);
-    let expires_at = Utc::now() + Duration::hours(168);
+    let expires_at = Utc::now() + Duration::hours(state.jwt_service.refresh_expiration_hours());
     let refresh_token_record = RefreshToken::new(subject_id.clone(), token_hash, expires_at);
     state
         .refresh_token_repository
@@ -255,7 +240,7 @@ pub async fn refresh_token(
     let new_refresh_token_str = state.jwt_service.create_refresh_token(&subject_id)?;
 
     let new_token_hash = hash_token(&new_refresh_token_str);
-    let expires_at = Utc::now() + Duration::hours(168);
+    let expires_at = Utc::now() + Duration::hours(state.jwt_service.refresh_expiration_hours());
     let new_refresh_token_record =
         RefreshToken::new(subject_id.clone(), new_token_hash, expires_at);
     state

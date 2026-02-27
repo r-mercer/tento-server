@@ -13,10 +13,11 @@ pub struct JwtService {
     decoding_key: DecodingKey,
     validation: Validation,
     expiration_hours: i64,
+    refresh_expiration_hours: i64,
 }
 
 impl JwtService {
-    pub fn new(secret: &SecretString, expiration_hours: i64) -> Self {
+    pub fn new(secret: &SecretString, expiration_hours: i64, refresh_expiration_hours: i64) -> Self {
         let secret_bytes = secret.expose_secret().as_bytes();
 
         Self {
@@ -24,6 +25,7 @@ impl JwtService {
             decoding_key: DecodingKey::from_secret(secret_bytes),
             validation: Validation::default(),
             expiration_hours,
+            refresh_expiration_hours,
         }
     }
 
@@ -41,11 +43,14 @@ impl JwtService {
     }
 
     pub fn create_refresh_token(&self, username: &str) -> AppResult<String> {
-        // 168 hours = 7 days
-        let claims = RefreshClaims::new(username, 168);
+        let claims = RefreshClaims::new(username, self.refresh_expiration_hours);
 
         encode(&Header::default(), &claims, &self.encoding_key)
             .map_err(|e| AppError::InternalError(format!("Failed to create refresh token: {}", e)))
+    }
+
+    pub fn refresh_expiration_hours(&self) -> i64 {
+        self.refresh_expiration_hours
     }
 
     pub fn validate_refresh_token(&self, token: &str) -> AppResult<RefreshClaims> {
@@ -82,7 +87,7 @@ mod tests {
     #[test]
     fn test_jwt_create_and_validate() {
         let config = Config::test_config();
-        let jwt_service = JwtService::new(&config.jwt_secret, 1);
+        let jwt_service = JwtService::new(&config.jwt_secret, 1, 168);
 
         let user = User::new("John", "Doe", "johndoe", "john@example.com");
         let token = jwt_service.create_token(&user).unwrap();
@@ -97,7 +102,7 @@ mod tests {
     #[test]
     fn test_jwt_invalid_token() {
         let config = Config::test_config();
-        let jwt_service = JwtService::new(&config.jwt_secret, 1);
+        let jwt_service = JwtService::new(&config.jwt_secret, 1, 168);
 
         let result = jwt_service.validate_token("invalid.token.here");
         assert!(result.is_err());
@@ -106,7 +111,7 @@ mod tests {
     #[test]
     fn test_refresh_token_create_and_validate() {
         let config = Config::test_config();
-        let jwt_service = JwtService::new(&config.jwt_secret, 1);
+        let jwt_service = JwtService::new(&config.jwt_secret, 1, 168);
 
         let refresh_token = jwt_service.create_refresh_token("johndoe").unwrap();
         assert!(!refresh_token.is_empty());
@@ -119,7 +124,7 @@ mod tests {
     #[test]
     fn test_refresh_token_invalid() {
         let config = Config::test_config();
-        let jwt_service = JwtService::new(&config.jwt_secret, 1);
+        let jwt_service = JwtService::new(&config.jwt_secret, 1, 168);
 
         let result = jwt_service.validate_refresh_token("invalid.token.here");
         assert!(result.is_err());
