@@ -7,6 +7,7 @@ use crate::models::domain::quiz_question::QuizQuestionType;
 use crate::models::domain::{quiz::QuizStatus, Quiz, QuizQuestion, User};
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
+#[graphql(rename_fields = "snake_case")]
 pub struct UserDto {
     pub id: String,
     pub username: String,
@@ -33,6 +34,7 @@ impl From<User> for UserDto {
 }
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
+#[graphql(rename_fields = "snake_case")]
 pub struct QuizResponseDto {
     pub id: String,
     pub name: String,
@@ -84,6 +86,7 @@ pub struct ApiResponse<T: async_graphql::OutputType> {
 }
 
 #[derive(Debug, Serialize, SimpleObject)]
+#[graphql(rename_fields = "snake_case")]
 pub struct CreateQuizDraftResponseData {
     pub quiz: QuizResponseDto,
     pub job_id: String,
@@ -109,6 +112,7 @@ pub struct ChatCompletionResponse {
 pub type ChatCompletionApiResponse = ApiResponse<ChatCompletionResponse>;
 
 #[derive(Debug, Serialize, SimpleObject)]
+#[graphql(rename_fields = "snake_case")]
 pub struct QuizForTaking {
     pub id: String,
     pub name: String,
@@ -217,6 +221,7 @@ impl QuizForTaking {
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
+#[graphql(rename_fields = "snake_case")]
 pub struct QuizAttemptResponse {
     pub id: String,
     pub quiz_id: String,
@@ -244,6 +249,7 @@ impl From<QuizAttempt> for QuizAttemptResponse {
 }
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
+#[graphql(rename_fields = "snake_case")]
 pub struct QuestionAttemptDetail {
     pub question_id: String,
     pub user_selected_option_ids: Vec<String>,

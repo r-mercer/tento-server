@@ -12,6 +12,7 @@ use crate::models::domain::summary_document::SummaryDocument;
 use crate::models::dto::quiz_dto::{QuizDto, QuizQuestionDto};
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+#[graphql(rename_fields = "snake_case")]
 pub struct CreateUserRequestDto {
     #[validate(length(min = 1, max = 100))]
     pub first_name: String,
@@ -27,6 +28,7 @@ pub struct CreateUserRequestDto {
 }
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+#[graphql(rename_fields = "snake_case")]
 pub struct UpdateUserRequestDto {
     #[validate(length(min = 1, max = 100))]
     pub first_name: Option<String>,
@@ -91,6 +93,7 @@ pub struct GenerateQuizQuestionOptionRequestDto {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
+#[graphql(rename_fields = "snake_case")]
 pub struct QuizRequestDto {
     pub id: String,
     pub name: String,
@@ -223,6 +226,7 @@ impl TryFrom<QuizRequestDto> for QuizDto {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate, InputObject, JsonSchema)]
+#[graphql(rename_fields = "snake_case")]
 pub struct SummaryDocumentRequestDto {
     pub id: String,
     pub quiz_id: String,
@@ -422,12 +426,14 @@ impl PaginationParams {
 }
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+#[graphql(rename_fields = "snake_case")]
 pub struct QuestionAnswerInput {
     pub question_id: String,              // UUID as string
     pub selected_option_ids: Vec<String>, // UUID strings
 }
 
 #[derive(Debug, Clone, Deserialize, Validate, InputObject)]
+#[graphql(rename_fields = "snake_case")]
 pub struct SubmitQuizAttemptInput {
     pub quiz_id: String,
     pub answers: Vec<QuestionAnswerInput>,
