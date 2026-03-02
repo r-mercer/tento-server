@@ -9,6 +9,7 @@ use uuid::Uuid;
 ///
 /// # Example
 /// ```
+/// use tento_server::logging::generate_correlation_id;
 /// let correlation_id = generate_correlation_id();
 /// log::info!(target: "agent_orchestrator", "[{}] Job started", correlation_id);
 /// ```
@@ -20,7 +21,7 @@ pub fn generate_correlation_id() -> String {
 ///
 /// # Example
 /// ```
-/// use crate::logging::ModelInteractionLog;
+/// use tento_server::logging::ModelInteractionLog;
 ///
 /// ModelInteractionLog::new("chat_completion")
 ///     .with_correlation_id("abc-123")
@@ -137,8 +138,10 @@ impl ModelInteractionLog {
 ///
 /// # Example
 /// ```
-/// use crate::logging::JobWorkflowLog;
+/// use tento_server::logging::JobWorkflowLog;
 ///
+/// let correlation_id = "abc-123";
+/// let job_id = "job-789";
 /// JobWorkflowLog::new("create_job")
 ///     .with_correlation_id(&correlation_id)
 ///     .with_job_id(&job_id)

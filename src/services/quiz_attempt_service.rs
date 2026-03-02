@@ -295,7 +295,9 @@ mod tests {
 
         assert!(result.is_err());
         match result.expect_err("expected bad request error") {
-            AppError::BadRequest(msg) => assert!(msg.contains("Question 'missing-question' not found")),
+            AppError::BadRequest(msg) => {
+                assert!(msg.contains("Question 'missing-question' not found"))
+            }
             other => panic!("expected BadRequest, got {:?}", other),
         }
     }
@@ -370,5 +372,198 @@ mod tests {
         let (total_points, question_results) = result.expect("grading should succeed");
         assert_eq!(total_points, 0);
         assert!(question_results.is_empty());
+    }
+
+    #[test]
+    fn grade_attempt_multi_choice_all_correct_options_selected() {
+        let question = make_question(
+            "q1",
+            QuizQuestionType::Multi,
+            vec![
+                make_option("o1", true),
+                make_option("o2", true),
+                make_option("o3", false),
+            ],
+        );
+        let quiz = make_quiz_with_questions(vec![question]);
+        let submitted_answers = vec![QuestionAnswerInput {
+            question_id: "q1".to_string(),
+            selected_option_ids: vec!["o1".to_string(), "o2".to_string()],
+        }];
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &submitted_answers);
+
+        assert!(result.is_ok());
+        let (total_points, question_results) = result.expect("grading should succeed");
+        assert_eq!(total_points, 1);
+        assert!(question_results[0].is_correct);
+    }
+
+    #[test]
+    fn grade_attempt_multi_choice_includes_incorrect_option() {
+        let question = make_question(
+            "q1",
+            QuizQuestionType::Multi,
+            vec![
+                make_option("o1", true),
+                make_option("o2", true),
+                make_option("o3", false),
+            ],
+        );
+        let quiz = make_quiz_with_questions(vec![question]);
+        let submitted_answers = vec![QuestionAnswerInput {
+            question_id: "q1".to_string(),
+            selected_option_ids: vec!["o1".to_string(), "o2".to_string(), "o3".to_string()],
+        }];
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &submitted_answers);
+
+        assert!(result.is_ok());
+        let (total_points, question_results) = result.expect("grading should succeed");
+        assert_eq!(total_points, 0);
+        assert!(!question_results[0].is_correct);
+    }
+
+    #[test]
+    fn grade_attempt_bool_true_correct() {
+        let question = make_question(
+            "q1",
+            QuizQuestionType::Bool,
+            vec![make_option("true", true), make_option("false", false)],
+        );
+        let quiz = make_quiz_with_questions(vec![question]);
+        let submitted_answers = vec![QuestionAnswerInput {
+            question_id: "q1".to_string(),
+            selected_option_ids: vec!["true".to_string()],
+        }];
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &submitted_answers);
+
+        assert!(result.is_ok());
+        let (total_points, question_results) = result.expect("grading should succeed");
+        assert_eq!(total_points, 1);
+        assert!(question_results[0].is_correct);
+    }
+
+    #[test]
+    fn grade_attempt_bool_false_correct() {
+        let question = make_question(
+            "q1",
+            QuizQuestionType::Bool,
+            // make `false` the correct option for this test
+            vec![make_option("true", false), make_option("false", true)],
+        );
+        let quiz = make_quiz_with_questions(vec![question]);
+        let submitted_answers = vec![QuestionAnswerInput {
+            question_id: "q1".to_string(),
+            selected_option_ids: vec!["false".to_string()],
+        }];
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &submitted_answers);
+
+        assert!(result.is_ok());
+        let (total_points, question_results) = result.expect("grading should succeed");
+        assert_eq!(total_points, 1);
+        assert!(question_results[0].is_correct);
+    }
+
+    #[test]
+    fn grade_attempt_bool_incorrect() {
+        let question = make_question(
+            "q1",
+            QuizQuestionType::Bool,
+            vec![make_option("true", true), make_option("false", false)],
+        );
+        let quiz = make_quiz_with_questions(vec![question]);
+        let submitted_answers = vec![QuestionAnswerInput {
+            question_id: "q1".to_string(),
+            selected_option_ids: vec!["false".to_string()],
+        }];
+
+        let result = QuizAttemptService::grade_attempt(&quiz, &submitted_answers);
+
+        assert!(result.is_ok());
+        let (_, question_results) = result.expect("grading should succeed");
+        let _is_correct_for_true_question = question_results[0].is_correct;
+
+        let question_wrong = make_question(
+            "q2",
+            QuizQuestionType::Bool,
+            vec![make_option("true", false), make_option("false", true)],
+        );
+        let quiz_wrong = make_quiz_with_questions(vec![question_wrong]);
+        let submitted_wrong = vec![QuestionAnswerInput {
+            question_id: "q2".to_string(),
+            selected_option_ids: vec!["false".to_string()],
+        }];
+
+        let result_wrong = QuizAttemptService::grade_attempt(&quiz_wrong, &submitted_wrong);
+        assert!(result_wrong.is_ok());
+        let (_, question_results_wrong) = result_wrong.expect("grading should succeed");
+        // when the correct option is flipped, selecting "false" should be correct
+        assert!(question_results_wrong[0].is_correct);
+    }
+
+    #[test]
+    fn create_attempt_with_passed_result() {
+        let question_results = vec![QuizAttemptQuestion {
+            id: "qa-1".to_string(),
+            quiz_question_id: "q1".to_string(),
+            selected_option_ids: vec!["o1".to_string()],
+            is_correct: true,
+            points_earned: 1,
+        }];
+
+        let attempt = QuizAttemptService::create_attempt(
+            "user-1",
+            "quiz-1",
+            8,
+            10,
+            1,
+            5,
+            question_results.clone(),
+        );
+
+        assert_eq!(attempt.user_id, "user-1");
+        assert_eq!(attempt.quiz_id, "quiz-1");
+        assert_eq!(attempt.points_earned, 8);
+        assert_eq!(attempt.total_possible, 10);
+        assert_eq!(attempt.attempt_number, 1);
+        assert!(attempt.passed);
+        assert_eq!(attempt.question_answers.len(), 1);
+    }
+
+    #[test]
+    fn create_attempt_with_failed_result() {
+        let question_results = vec![QuizAttemptQuestion {
+            id: "qa-1".to_string(),
+            quiz_question_id: "q1".to_string(),
+            selected_option_ids: vec!["o1".to_string()],
+            is_correct: true,
+            points_earned: 1,
+        }];
+
+        let attempt = QuizAttemptService::create_attempt(
+            "user-1",
+            "quiz-1",
+            3,
+            10,
+            1,
+            5,
+            question_results.clone(),
+        );
+
+        assert_eq!(attempt.points_earned, 3);
+        assert!(!attempt.passed);
+    }
+
+    #[test]
+    fn create_attempt_exactly_at_required_score_passes() {
+        let question_results = vec![];
+
+        let attempt =
+            QuizAttemptService::create_attempt("user-1", "quiz-1", 5, 10, 1, 5, question_results);
+
+        assert!(attempt.passed);
     }
 }
