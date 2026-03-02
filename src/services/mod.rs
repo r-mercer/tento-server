@@ -1,4 +1,5 @@
 pub mod agent_orchestrator_service;
+pub mod content_extractor;
 pub mod model_service;
 pub mod orchestrator_steps;
 pub mod quiz_attempt_service;

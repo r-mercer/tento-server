@@ -21,23 +21,24 @@ use serde_json::{json, Value};
 use crate::{
     config::Config,
     constants::{
-        prompts::QUIZ_GENERATOR_PROMPT,
+        prompts::{QUIZ_GENERATOR_PROMPT, EXTRACTION_FIRST_SUMMARISER_PROMPT},
         quiz_prompt::{STRUCTURED_QUIZ_GENERATOR_PROMPT, URL_EXTRACTION_PROMPT},
         WEBSITE_SUMMARISER_PROMPT,
     },
     errors::{AppError, AppResult},
     models::dto::request::{GenerateQuizRequestDto, QuizRequestDto, SummaryDocumentRequestDto},
+    services::content_extractor::ContentExtractor,
 };
 
 pub struct ModelService {
     client: Client<OpenAIConfig>,
+    content_extractor: ContentExtractor,
 }
 
 const TOOL_MAX_ATTEMPTS: u32 = 12;
 const TOOL_MAX_CONTENT_LENGTH: usize = 20000;
 const STRUCTURED_OUTPUT_MAX_TOKENS: u32 = 12288;
 const DEFAULT_MODEL: &str = "mistralai/ministral-3-3b";
-const DEFAULT_CONTEXT_LENGTH: u32 = 16384; // Context window size for the default model
 
 #[derive(Debug, Deserialize)]
 struct FetchWebpageArgs {
@@ -57,9 +58,12 @@ impl ModelService {
             .with_api_base(&config.openai_base_url);
 
         let client = Client::with_config(openai_config);
-        // let summariser_client = Client::with_config(openai_config);
+        let content_extractor = ContentExtractor::new();
 
-        Self { client }
+        Self {
+            client,
+            content_extractor,
+        }
     }
 
     pub async fn chat_completion(&self, prompt: &str, model: &str) -> AppResult<String> {
@@ -187,6 +191,48 @@ impl ModelService {
         }
 
         // Ok(response)
+    }
+
+    pub async fn extraction_first_summary(
+        &self,
+        url_string: &str,
+    ) -> AppResult<SummaryDocumentRequestDto> {
+        let extracted = self
+            .content_extractor
+            .extract(url_string)
+            .await
+            .map_err(|e| AppError::InternalError(format!("Content extraction failed: {}", e)))?;
+
+        log::info!(
+            "Extracted content: {} chars from {}",
+            extracted.metadata.extracted_length,
+            url_string
+        );
+
+        let chunks = self.content_extractor.chunk_content(&extracted);
+        log::debug!("Content split into {} chunks", chunks.len());
+
+        let formatted_content = self.content_extractor.format_for_llm(&extracted, &chunks);
+
+        match self
+            .structured_output::<SummaryDocumentRequestDto>(vec![
+                ChatCompletionRequestSystemMessage::from(
+                    EXTRACTION_FIRST_SUMMARISER_PROMPT,
+                )
+                .into(),
+                ChatCompletionRequestUserMessage::from(formatted_content).into(),
+            ])
+            .await
+        {
+            Ok(Some(summary)) => Ok(summary),
+            Ok(None) => Err(AppError::InternalError(
+                "LLM did not return a valid summary".to_string(),
+            )),
+            Err(e) => Err(AppError::InternalError(format!(
+                "Failed to generate summary: {}",
+                e
+            ))),
+        }
     }
 
     pub async fn structured_summary_document(

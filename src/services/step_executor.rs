@@ -115,7 +115,7 @@ impl StepHandler {
             .try_into()
             .map_err(|e| format!("Failed to parse quiz: {}", e))?;
 
-        match app_state.model_service.website_summariser(&quiz.url, Some(quiz.question_count)).await {
+        match app_state.model_service.extraction_first_summary(&quiz.url).await {
             Ok(summary_dto) => {
                 log::info!(
                     "Successfully created summary document for job {}",
@@ -127,7 +127,7 @@ impl StepHandler {
                     id: Uuid::new_v4().to_string(),
                     quiz_id: quiz.id.clone(),
                     url: quiz.url.clone(),
-                    content: summary_dto,
+                    content: summary_dto.content,
                     created_at: now.clone(),
                     modified_at: now,
                 };
