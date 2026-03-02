@@ -26,6 +26,7 @@ use crate::{
         WEBSITE_SUMMARISER_PROMPT,
     },
     errors::{AppError, AppResult},
+    logging::{generate_correlation_id, ModelInteractionLog},
     models::dto::request::{GenerateQuizRequestDto, QuizRequestDto, SummaryDocumentRequestDto},
     services::content_extractor::ContentExtractor,
 };
@@ -67,6 +68,21 @@ impl ModelService {
     }
 
     pub async fn chat_completion(&self, prompt: &str, model: &str) -> AppResult<String> {
+        let correlation_id = generate_correlation_id();
+        
+        // Log the request
+        ModelInteractionLog::new("chat_completion")
+            .with_correlation_id(&correlation_id)
+            .with_model(model)
+            .log_request();
+
+        log::debug!(
+            target: "model_service",
+            "[{}] Chat completion request to model: {}",
+            correlation_id,
+            model
+        );
+
         let message = ChatCompletionRequestUserMessageArgs::default()
             .content(prompt)
             .build()
@@ -78,28 +94,78 @@ impl ModelService {
             .build()
             .map_err(|e| AppError::InternalError(format!("Failed to build chat request: {}", e)))?;
 
+        let start_time = std::time::Instant::now();
         let response = self
             .client
             .chat()
             .create(request)
             .await
-            .map_err(|e| AppError::InternalError(format!("LLM request failed: {}", e)))?;
+            .map_err(|e| {
+                let error_msg = format!("LLM request failed: {}", e);
+                log::error!(
+                    target: "model_service",
+                    "[{}] LLM request failed: {}",
+                    correlation_id,
+                    e
+                );
+                AppError::InternalError(error_msg)
+            })?;
+        let duration_ms = start_time.elapsed().as_millis() as u64;
 
         let content = response
             .choices
             .first()
             .and_then(|choice| choice.message.content.clone())
-            .ok_or_else(|| AppError::InternalError("No response from LLM".to_string()))?;
+            .ok_or_else(|| {
+                let error = "No response from LLM".to_string();
+                log::error!(
+                    target: "model_service",
+                    "[{}] No response from LLM",
+                    correlation_id
+                );
+                AppError::InternalError(error)
+            })?;
+
+        // Log successful response
+        ModelInteractionLog::new("chat_completion")
+            .with_correlation_id(&correlation_id)
+            .with_model(model)
+            .with_success(true)
+            .with_duration_ms(duration_ms)
+            .log_response();
+
+        log::debug!(
+            target: "model_service",
+            "[{}] Chat completion response received ({}ms)",
+            correlation_id,
+            duration_ms
+        );
 
         Ok(content)
     }
 
     pub async fn website_summariser(&self, url_string: &str, question_count: Option<i16>) -> AppResult<String> {
+        let correlation_id = generate_correlation_id();
+        
+        log::info!(
+            target: "model_service",
+            "[{}] Website summarizer request for URL: {}",
+            correlation_id,
+            url_string
+        );
+
         let mut user_message = format!("URL: {}", url_string);
         if let Some(count) = question_count {
             user_message.push_str(&format!("\nQuestion Count: {}", count));
         }
         
+        // Log structured request
+        ModelInteractionLog::new("website_summariser")
+            .with_correlation_id(&correlation_id)
+            .with_model(DEFAULT_MODEL)
+            .log_request();
+
+        let start_time = std::time::Instant::now();
         let response: Value = self
             .client
             .chat()
@@ -118,9 +184,25 @@ impl ModelService {
                 "store": false
             }))
             .await?;
+        let duration_ms = start_time.elapsed().as_millis() as u64;
 
         let content = response["choices"][0]["message"]["content"].to_string();
-        log::debug!("website_summariser content length: {}", content.len());
+        
+        // Log successful response
+        ModelInteractionLog::new("website_summariser")
+            .with_correlation_id(&correlation_id)
+            .with_model(DEFAULT_MODEL)
+            .with_success(true)
+            .with_duration_ms(duration_ms)
+            .log_response();
+
+        log::debug!(
+            target: "model_service",
+            "[{}] website_summariser content length: {} ({}ms)",
+            correlation_id,
+            content.len(),
+            duration_ms
+        );
 
         Ok(content)
     }
@@ -130,11 +212,27 @@ impl ModelService {
         quiz: QuizRequestDto,
         summary_document: SummaryDocumentRequestDto,
     ) -> AppResult<String> {
+        let correlation_id = generate_correlation_id();
+        
+        log::info!(
+            target: "model_service",
+            "[{}] Quiz generator request",
+            correlation_id
+        );
+
         let quiz_json = serde_json::to_string(&quiz)
             .map_err(|e| AppError::InternalError(format!("Failed to serialize quiz: {}", e)))?;
         let summary_json = serde_json::to_string(&summary_document).map_err(|e| {
             AppError::InternalError(format!("Failed to serialize summary document: {}", e))
         })?;
+        
+        // Log structured request
+        ModelInteractionLog::new("quiz_generator")
+            .with_correlation_id(&correlation_id)
+            .with_model(DEFAULT_MODEL)
+            .log_request();
+
+        let start_time = std::time::Instant::now();
         let response: Value = self
             .client
             .chat()
@@ -157,9 +255,25 @@ impl ModelService {
                 "store": false
             }))
             .await?;
+        let duration_ms = start_time.elapsed().as_millis() as u64;
 
         let content = response["choices"][0]["message"]["content"].to_string();
-        log::debug!("quiz_generator content length: {}", content.len());
+        
+        // Log successful response
+        ModelInteractionLog::new("quiz_generator")
+            .with_correlation_id(&correlation_id)
+            .with_model(DEFAULT_MODEL)
+            .with_success(true)
+            .with_duration_ms(duration_ms)
+            .log_response();
+
+        log::debug!(
+            target: "model_service",
+            "[{}] quiz_generator content length: {} ({}ms)",
+            correlation_id,
+            content.len(),
+            duration_ms
+        );
 
         Ok(content)
     }
@@ -169,6 +283,21 @@ impl ModelService {
         _quiz: QuizRequestDto,
         summary_document: SummaryDocumentRequestDto,
     ) -> AppResult<GenerateQuizRequestDto> {
+        let correlation_id = generate_correlation_id();
+        
+        log::info!(
+            target: "model_service",
+            "[{}] Structured quiz generator request",
+            correlation_id
+        );
+
+        // Log structured request
+        ModelInteractionLog::new("structured_quiz_generator")
+            .with_correlation_id(&correlation_id)
+            .with_model(DEFAULT_MODEL)
+            .log_request();
+
+        let start_time = std::time::Instant::now();
         match self
             .structured_output::<GenerateQuizRequestDto>(vec![
                 ChatCompletionRequestSystemMessage::from(
@@ -180,14 +309,53 @@ impl ModelService {
             ])
             .await
         {
-            Ok(Some(generated_quiz)) => Ok(generated_quiz),
-            Ok(None) => Err(AppError::InternalError(
-                "LLM did not return a valid quiz".to_string(),
-            )),
-            Err(e) => Err(AppError::InternalError(format!(
-                "Failed to generate structured quiz: {}",
-                e
-            ))),
+            Ok(Some(generated_quiz)) => {
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                
+                ModelInteractionLog::new("structured_quiz_generator")
+                    .with_correlation_id(&correlation_id)
+                    .with_model(DEFAULT_MODEL)
+                    .with_success(true)
+                    .with_duration_ms(duration_ms)
+                    .log_response();
+                
+                Ok(generated_quiz)
+            }
+            Ok(None) => {
+                let error = "LLM did not return a valid quiz".to_string();
+                log::error!(
+                    target: "model_service",
+                    "[{}] Structured quiz generator returned None",
+                    correlation_id
+                );
+                
+                ModelInteractionLog::new("structured_quiz_generator")
+                    .with_correlation_id(&correlation_id)
+                    .with_model(DEFAULT_MODEL)
+                    .with_success(false)
+                    .with_error(&error)
+                    .log_response();
+                
+                Err(AppError::InternalError(error))
+            }
+            Err(e) => {
+                let error_msg = format!("Failed to generate structured quiz: {}", e);
+                log::error!(
+                    target: "model_service",
+                    "[{}] Structured quiz generator error: {}",
+                    correlation_id,
+                    e
+                );
+                
+                ModelInteractionLog::new("structured_quiz_generator")
+                    .with_correlation_id(&correlation_id)
+                    .with_model(DEFAULT_MODEL)
+                    .with_success(false)
+                    .with_error(&error_msg)
+                    .log_response();
+                
+                Err(AppError::InternalError(error_msg))
+            }
         }
 
         // Ok(response)
@@ -197,23 +365,55 @@ impl ModelService {
         &self,
         url_string: &str,
     ) -> AppResult<SummaryDocumentRequestDto> {
+        let correlation_id = generate_correlation_id();
+        
+        log::info!(
+            target: "model_service",
+            "[{}] Extraction-first summary request for URL: {}",
+            correlation_id,
+            url_string
+        );
+
         let extracted = self
             .content_extractor
             .extract(url_string)
             .await
-            .map_err(|e| AppError::InternalError(format!("Content extraction failed: {}", e)))?;
+            .map_err(|e| {
+                let error_msg = format!("Content extraction failed: {}", e);
+                log::error!(
+                    target: "model_service",
+                    "[{}] Content extraction failed: {}",
+                    correlation_id,
+                    e
+                );
+                AppError::InternalError(error_msg)
+            })?;
 
         log::info!(
-            "Extracted content: {} chars from {}",
+            target: "model_service",
+            "[{}] Extracted content: {} chars from {}",
+            correlation_id,
             extracted.metadata.extracted_length,
             url_string
         );
 
         let chunks = self.content_extractor.chunk_content(&extracted);
-        log::debug!("Content split into {} chunks", chunks.len());
+        log::debug!(
+            target: "model_service",
+            "[{}] Content split into {} chunks",
+            correlation_id,
+            chunks.len()
+        );
 
         let formatted_content = self.content_extractor.format_for_llm(&extracted, &chunks);
 
+        // Log structured request
+        ModelInteractionLog::new("extraction_first_summary")
+            .with_correlation_id(&correlation_id)
+            .with_model(DEFAULT_MODEL)
+            .log_request();
+
+        let start_time = std::time::Instant::now();
         match self
             .structured_output::<SummaryDocumentRequestDto>(vec![
                 ChatCompletionRequestSystemMessage::from(
@@ -224,14 +424,60 @@ impl ModelService {
             ])
             .await
         {
-            Ok(Some(summary)) => Ok(summary),
-            Ok(None) => Err(AppError::InternalError(
-                "LLM did not return a valid summary".to_string(),
-            )),
-            Err(e) => Err(AppError::InternalError(format!(
-                "Failed to generate summary: {}",
-                e
-            ))),
+            Ok(Some(summary)) => {
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                
+                ModelInteractionLog::new("extraction_first_summary")
+                    .with_correlation_id(&correlation_id)
+                    .with_model(DEFAULT_MODEL)
+                    .with_success(true)
+                    .with_duration_ms(duration_ms)
+                    .log_response();
+                
+                log::info!(
+                    target: "model_service",
+                    "[{}] Extraction-first summary completed ({}ms)",
+                    correlation_id,
+                    duration_ms
+                );
+                
+                Ok(summary)
+            }
+            Ok(None) => {
+                let error = "LLM did not return a valid summary".to_string();
+                log::error!(
+                    target: "model_service",
+                    "[{}] Extraction-first summary returned None",
+                    correlation_id
+                );
+                
+                ModelInteractionLog::new("extraction_first_summary")
+                    .with_correlation_id(&correlation_id)
+                    .with_model(DEFAULT_MODEL)
+                    .with_success(false)
+                    .with_error(&error)
+                    .log_response();
+                
+                Err(AppError::InternalError(error))
+            }
+            Err(e) => {
+                let error_msg = format!("Failed to generate summary: {}", e);
+                log::error!(
+                    target: "model_service",
+                    "[{}] Extraction-first summary error: {}",
+                    correlation_id,
+                    e
+                );
+                
+                ModelInteractionLog::new("extraction_first_summary")
+                    .with_correlation_id(&correlation_id)
+                    .with_model(DEFAULT_MODEL)
+                    .with_success(false)
+                    .with_error(&error_msg)
+                    .log_response();
+                
+                Err(AppError::InternalError(error_msg))
+            }
         }
     }
 
@@ -239,10 +485,27 @@ impl ModelService {
         &self,
         url_string: &str,
     ) -> AppResult<SummaryDocumentRequestDto> {
+        let correlation_id = generate_correlation_id();
+        
+        log::info!(
+            target: "model_service",
+            "[{}] Structured summary document request for URL: {}",
+            correlation_id,
+            url_string
+        );
+
         let tools = vec![
             Self::build_fetch_webpage_tool()?,
             Self::build_open_simple_browser_tool()?,
         ];
+        
+        // Log structured request
+        ModelInteractionLog::new("structured_summary_document")
+            .with_correlation_id(&correlation_id)
+            .with_model(DEFAULT_MODEL)
+            .log_request();
+
+        let start_time = std::time::Instant::now();
         match self
             .structured_output_with_tools::<SummaryDocumentRequestDto>(
                 vec![
@@ -253,14 +516,60 @@ impl ModelService {
             )
             .await
         {
-            Ok(Some(summary_document)) => Ok(summary_document),
-            Ok(None) => Err(AppError::InternalError(
-                "LLM did not return a valid summary document".to_string(),
-            )),
-            Err(e) => Err(AppError::InternalError(format!(
-                "Failed to generate structured summary document: {}",
-                e
-            ))),
+            Ok(Some(summary_document)) => {
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                
+                ModelInteractionLog::new("structured_summary_document")
+                    .with_correlation_id(&correlation_id)
+                    .with_model(DEFAULT_MODEL)
+                    .with_success(true)
+                    .with_duration_ms(duration_ms)
+                    .log_response();
+                
+                log::info!(
+                    target: "model_service",
+                    "[{}] Structured summary document completed ({}ms)",
+                    correlation_id,
+                    duration_ms
+                );
+                
+                Ok(summary_document)
+            }
+            Ok(None) => {
+                let error = "LLM did not return a valid summary document".to_string();
+                log::error!(
+                    target: "model_service",
+                    "[{}] Structured summary document returned None",
+                    correlation_id
+                );
+                
+                ModelInteractionLog::new("structured_summary_document")
+                    .with_correlation_id(&correlation_id)
+                    .with_model(DEFAULT_MODEL)
+                    .with_success(false)
+                    .with_error(&error)
+                    .log_response();
+                
+                Err(AppError::InternalError(error))
+            }
+            Err(e) => {
+                let error_msg = format!("Failed to generate structured summary document: {}", e);
+                log::error!(
+                    target: "model_service",
+                    "[{}] Structured summary document error: {}",
+                    correlation_id,
+                    e
+                );
+                
+                ModelInteractionLog::new("structured_summary_document")
+                    .with_correlation_id(&correlation_id)
+                    .with_model(DEFAULT_MODEL)
+                    .with_success(false)
+                    .with_error(&error_msg)
+                    .log_response();
+                
+                Err(AppError::InternalError(error_msg))
+            }
         }
     }
 

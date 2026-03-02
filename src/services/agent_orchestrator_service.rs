@@ -5,6 +5,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::app_state::AppState;
+use crate::logging::JobWorkflowLog;
 use crate::repositories::AgentJobRepository;
 use crate::services::step_executor::{JobStepType, StepHandler};
 
@@ -73,6 +74,7 @@ pub struct AgentJob {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     pub job_id: String,
+    pub correlation_id: String,
     pub status: JobStatus,
     pub steps: Vec<JobStep>,
     pub current_step_index: usize,
@@ -87,9 +89,11 @@ pub struct AgentJob {
 impl AgentJob {
     pub fn new(steps: Vec<JobStep>) -> Self {
         let job_id = Uuid::new_v4().to_string();
+        let correlation_id = Uuid::new_v4().to_string();
         Self {
             id: Some(job_id.clone()),
             job_id,
+            correlation_id,
             status: JobStatus::Pending,
             steps,
             current_step_index: 0,
@@ -135,6 +139,27 @@ impl AgentOrchestrator {
     }
 
     pub async fn create_job(&self, steps: Vec<JobStep>) -> Result<String, String> {
+        // Create a temporary job to get the correlation_id for logging
+        let temp_job = AgentJob::new(steps.clone());
+        let correlation_id = temp_job.correlation_id.clone();
+        let job_id = temp_job.job_id.clone();
+        let step_count = steps.len();
+
+        // Log job creation with structured logging
+        JobWorkflowLog::new("create_job")
+            .with_correlation_id(&correlation_id)
+            .with_job_id(&job_id)
+            .with_success(true)
+            .log_start();
+
+        log::info!(
+            target: "agent_orchestrator",
+            "[{}] Job created: {} with {} steps",
+            correlation_id,
+            job_id,
+            step_count
+        );
+
         self.repository.create_job(steps).await
     }
 
@@ -162,6 +187,16 @@ impl AgentOrchestrator {
     }
 
     pub async fn start_job(&self, job_id: &str) -> Result<(), String> {
+        // Fetch job to get correlation_id for logging
+        if let Ok(Some(job)) = self.repository.get_job(job_id).await {
+            let correlation_id = &job.correlation_id;
+            log::info!(
+                target: "agent_orchestrator",
+                "[{}] Starting job: {}",
+                correlation_id,
+                job_id
+            );
+        }
         self.repository.start_job(job_id).await
     }
 
@@ -170,18 +205,82 @@ impl AgentOrchestrator {
         job_id: &str,
         result: Option<serde_json::Value>,
     ) -> Result<(), String> {
+        // Fetch job to get correlation_id for logging
+        if let Ok(Some(job)) = self.repository.get_job(job_id).await {
+            let correlation_id = &job.correlation_id;
+            let current_step = job.get_current_step();
+            let step_name = current_step.map(|s| s.name.as_str()).unwrap_or("unknown");
+            
+            log::info!(
+                target: "agent_orchestrator",
+                "[{}] Step completed for job: {}, step: {}",
+                correlation_id,
+                job_id,
+                step_name
+            );
+        }
         self.repository.complete_step(job_id, result).await
     }
 
     pub async fn fail_step(&self, job_id: &str, error: String) -> Result<(), String> {
+        // Fetch job to get correlation_id for logging
+        if let Ok(Some(job)) = self.repository.get_job(job_id).await {
+            let correlation_id = &job.correlation_id;
+            let current_step = job.get_current_step();
+            let step_name = current_step.map(|s| s.name.as_str()).unwrap_or("unknown");
+            let retry_count = current_step.map(|s| s.retry_count).unwrap_or(0);
+            let max_retries = current_step.map(|s| s.max_retries).unwrap_or(0);
+            
+            if retry_count >= max_retries {
+                log::error!(
+                    target: "agent_orchestrator",
+                    "[{}] Step failed permanently for job: {}, step: {}, error: {}",
+                    correlation_id,
+                    job_id,
+                    step_name,
+                    error
+                );
+            } else {
+                log::warn!(
+                    target: "agent_orchestrator",
+                    "[{}] Step failed for job: {}, step: {}, attempt: {}/{}, error: {}",
+                    correlation_id,
+                    job_id,
+                    step_name,
+                    retry_count + 1,
+                    max_retries + 1,
+                    error
+                );
+            }
+        }
         self.repository.fail_step(job_id, error).await
     }
 
     pub async fn pause_job(&self, job_id: &str) -> Result<(), String> {
+        // Fetch job to get correlation_id for logging
+        if let Ok(Some(job)) = self.repository.get_job(job_id).await {
+            let correlation_id = &job.correlation_id;
+            log::info!(
+                target: "agent_orchestrator",
+                "[{}] Pausing job: {}",
+                correlation_id,
+                job_id
+            );
+        }
         self.repository.pause_job(job_id).await
     }
 
     pub async fn resume_job(&self, job_id: &str) -> Result<(), String> {
+        // Fetch job to get correlation_id for logging
+        if let Ok(Some(job)) = self.repository.get_job(job_id).await {
+            let correlation_id = &job.correlation_id;
+            log::info!(
+                target: "agent_orchestrator",
+                "[{}] Resuming job: {}",
+                correlation_id,
+                job_id
+            );
+        }
         self.repository.resume_job(job_id).await
     }
 
@@ -189,15 +288,32 @@ impl AgentOrchestrator {
         &self,
         status_filter: Option<JobStatus>,
     ) -> Result<Vec<AgentJob>, String> {
+        if let Some(status) = status_filter {
+            log::debug!(
+                target: "agent_orchestrator",
+                "Listing jobs with status: {:?}",
+                status
+            );
+        }
         self.repository.list_jobs(status_filter).await
     }
 
     pub async fn delete_job(&self, job_id: &str) -> Result<(), String> {
+        // Fetch job to get correlation_id for logging (before deletion)
+        if let Ok(Some(job)) = self.repository.get_job(job_id).await {
+            let correlation_id = &job.correlation_id;
+            log::info!(
+                target: "agent_orchestrator",
+                "[{}] Deleting job: {}",
+                correlation_id,
+                job_id
+            );
+        }
         self.repository.delete_job(job_id).await
     }
 
     pub async fn start_worker(&self) -> Result<(), String> {
-        log::info!("Starting background worker");
+        log::info!(target: "agent_orchestrator", "Starting background worker");
 
         let repository = self.repository.clone();
         let app_state = self.app_state.clone();
@@ -208,7 +324,7 @@ impl AgentOrchestrator {
                     for mut job in jobs {
                         let app_state_read = app_state.read().await;
                         let Some(app_state_ref) = app_state_read.as_ref() else {
-                            log::warn!("App state not set for orchestrator");
+                            log::warn!(target: "agent_orchestrator", "App state not set for orchestrator");
                             drop(app_state_read);
                             continue;
                         };
@@ -216,21 +332,39 @@ impl AgentOrchestrator {
                         let app_state_clone: Arc<AppState> = app_state_ref.clone();
                         drop(app_state_read);
 
+                        let correlation_id = job.correlation_id.clone();
+                        let job_id = job.job_id.clone();
+
                         if let Some(current_step) = job.get_current_step() {
                             let step_name = current_step.name.clone();
                             let step_id = current_step.id.clone();
+                            let attempt = current_step.retry_count + 1;
+                            let max_attempts = current_step.max_retries + 1;
+                            let step_index = job.current_step_index;
 
                             if let Some(step_type) = JobStepType::from_step_name(&step_name) {
+                                // Log step start with structured format
+                                JobWorkflowLog::new("execute_step")
+                                    .with_correlation_id(&correlation_id)
+                                    .with_job_id(&job_id)
+                                    .with_step_name(&step_name)
+                                    .with_step_index(step_index)
+                                    .with_attempt(attempt)
+                                    .log_step_start();
+
                                 log::info!(
-                                    "Processing job {} - step {} ({}, attempt {}/{})",
-                                    job.job_id,
+                                    target: "agent_orchestrator",
+                                    "[{}] Processing job {} - step {} ({}, attempt {}/{})",
+                                    correlation_id,
+                                    job_id,
                                     step_id,
                                     step_name,
-                                    current_step.retry_count + 1,
-                                    current_step.max_retries + 1
+                                    attempt,
+                                    max_attempts
                                 );
 
                                 // Execute the step
+                                let start_time = std::time::Instant::now();
                                 match StepHandler::execute(
                                     step_type,
                                     current_step,
@@ -240,50 +374,112 @@ impl AgentOrchestrator {
                                 .await
                                 {
                                     Ok(result) => {
+                                        let duration_ms = start_time.elapsed().as_millis() as u64;
+                                        
                                         // Step succeeded - complete it
                                         if let Err(e) = repository
                                             .complete_step(&job.job_id, Some(result))
                                             .await
                                         {
-                                            log::error!("Failed to complete step: {}", e);
+                                            log::error!(
+                                                target: "agent_orchestrator",
+                                                "[{}] Failed to complete step for job {}: {}",
+                                                correlation_id,
+                                                job_id,
+                                                e
+                                            );
                                         } else {
+                                            JobWorkflowLog::new("execute_step")
+                                                .with_correlation_id(&correlation_id)
+                                                .with_job_id(&job_id)
+                                                .with_step_name(&step_name)
+                                                .with_step_index(step_index)
+                                                .with_attempt(attempt)
+                                                .with_success(true)
+                                                .with_duration_ms(duration_ms)
+                                                .log_step_complete();
+
                                             log::info!(
-                                                "Step {} completed for job {}",
+                                                target: "agent_orchestrator",
+                                                "[{}] Step {} completed for job {} ({}ms)",
+                                                correlation_id,
                                                 step_name,
-                                                job.job_id
+                                                job_id,
+                                                duration_ms
                                             );
                                         }
                                     }
                                     Err(error) => {
+                                        let duration_ms = start_time.elapsed().as_millis() as u64;
+                                        
                                         log::error!(
-                                            "Step {} failed for job {}: {}",
+                                            target: "agent_orchestrator",
+                                            "[{}] Step {} failed for job {}: {}",
+                                            correlation_id,
                                             step_name,
-                                            job.job_id,
+                                            job_id,
                                             error
                                         );
 
                                         if let Err(e) =
-                                            repository.fail_step(&job.job_id, error).await
+                                            repository.fail_step(&job.job_id, error.clone()).await
                                         {
-                                            log::error!("Failed to mark step as failed: {}", e);
+                                            log::error!(
+                                                target: "agent_orchestrator",
+                                                "[{}] Failed to mark step as failed for job {}: {}",
+                                                correlation_id,
+                                                job_id,
+                                                e
+                                            );
+                                        } else {
+                                            JobWorkflowLog::new("execute_step")
+                                                .with_correlation_id(&correlation_id)
+                                                .with_job_id(&job_id)
+                                                .with_step_name(&step_name)
+                                                .with_step_index(step_index)
+                                                .with_attempt(attempt)
+                                                .with_success(false)
+                                                .with_error(&error)
+                                                .with_duration_ms(duration_ms)
+                                                .log_step_complete();
                                         }
                                     }
                                 }
                             } else {
-                                log::error!("Unknown step type: {}", step_name);
+                                log::error!(
+                                    target: "agent_orchestrator",
+                                    "[{}] Unknown step type: {} for job {}",
+                                    correlation_id,
+                                    step_name,
+                                    job_id
+                                );
                                 let error = format!("Unknown step type: {}", step_name);
                                 let _ = repository.fail_step(&job.job_id, error).await;
                             }
                         } else {
                             log::info!(
-                                "Job {} has no more steps - marking as completed",
-                                job.job_id
+                                target: "agent_orchestrator",
+                                "[{}] Job {} has no more steps - marking as completed",
+                                correlation_id,
+                                job_id
                             );
 
                             job.status = JobStatus::Completed;
                             job.completed_at = Some(Utc::now());
                             if let Err(e) = repository.save(&job).await {
-                                log::error!("Failed to save completed job: {}", e);
+                                log::error!(
+                                    target: "agent_orchestrator",
+                                    "[{}] Failed to save completed job {}: {}",
+                                    correlation_id,
+                                    job_id,
+                                    e
+                                );
+                            } else {
+                                JobWorkflowLog::new("job_complete")
+                                    .with_correlation_id(&correlation_id)
+                                    .with_job_id(&job_id)
+                                    .with_success(true)
+                                    .log_complete();
                             }
                         }
                     }

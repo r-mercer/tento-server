@@ -13,6 +13,7 @@ pub mod db;
 pub mod errors;
 pub mod graphql;
 pub mod handlers;
+pub mod logging;
 pub mod middleware;
 pub mod models;
 pub mod repositories;

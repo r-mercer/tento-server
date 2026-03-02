@@ -376,6 +376,7 @@ mod tests {
             Ok(Some(AgentJob {
                 id: Some("job-123".to_string()),
                 job_id: "job-123".to_string(),
+                correlation_id: "corr-123".to_string(),
                 status: JobStatus::Pending,
                 steps: vec![JobStep::new("extract_content")],
                 current_step_index: 0,
