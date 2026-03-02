@@ -92,11 +92,13 @@ impl QuizService {
 
         let steps = create_quiz_generation_steps();
 
-        let job_id = self
+        let (job_id, correlation_id) = self
             .orchestrator
             .create_job(steps)
             .await
             .map_err(|e| AppError::InternalError(format!("Job creation failed: {}", e)))?;
+
+        log::info!(target: "quiz_service", "[{}] Quiz draft job created: {}", correlation_id, job_id);
 
         // Store quiz metadata in job
         self.orchestrator
@@ -109,7 +111,7 @@ impl QuizService {
             .map_err(|e| AppError::InternalError(format!("Failed to set job metadata: {}", e)))?;
 
         self.orchestrator
-            .start_job(&job_id)
+            .start_job(&job_id, Some(&correlation_id))
             .await
             .map_err(|e| AppError::InternalError(format!("Job startup failed: {}", e)))?;
 
@@ -266,7 +268,7 @@ mod tests {
 
         #[async_trait]
         impl AgentJobRepository for AgentJobRepo {
-            async fn create_job(&self, steps: Vec<JobStep>) -> Result<String, String>;
+            async fn create_job(&self, steps: Vec<JobStep>, job_id: &str, correlation_id: &str) -> Result<(), String>;
             async fn get_job(&self, job_id: &str) -> Result<Option<AgentJob>, String>;
             async fn get_job_status(&self, job_id: &str) -> Result<Option<JobStatus>, String>;
             async fn start_job(&self, job_id: &str) -> Result<(), String>;
@@ -366,17 +368,16 @@ mod tests {
 
         mock_repo.expect_create_quiz_draft().returning(|quiz| Ok(quiz));
 
-        mock_job_repo.expect_create_job().returning(|steps| {
+        mock_job_repo.expect_create_job().returning(|steps, _job_id, _correlation_id| {
             assert!(!steps.is_empty());
-            Ok("job-123".to_string())
+            Ok(())
         });
 
-        mock_job_repo.expect_get_job().returning(|job_id| {
-            assert_eq!(job_id, "job-123");
+        mock_job_repo.expect_get_job().returning(|_job_id| {
             Ok(Some(AgentJob {
-                id: Some("job-123".to_string()),
-                job_id: "job-123".to_string(),
-                correlation_id: "corr-123".to_string(),
+                id: Some("test-job-id".to_string()),
+                job_id: "test-job-id".to_string(),
+                correlation_id: "test-correlation-id".to_string(),
                 status: JobStatus::Pending,
                 steps: vec![JobStep::new("extract_content")],
                 current_step_index: 0,
@@ -390,13 +391,11 @@ mod tests {
         });
 
         mock_job_repo.expect_save().returning(|job| {
-            assert_eq!(job.job_id, "job-123");
             assert!(job.results.contains_key("quiz_id"));
             Ok(())
         });
 
-        mock_job_repo.expect_start_job().returning(|job_id| {
-            assert_eq!(job_id, "job-123");
+        mock_job_repo.expect_start_job().returning(|_job_id| {
             Ok(())
         });
 
@@ -415,7 +414,7 @@ mod tests {
             .await
             .expect("expected draft creation to succeed");
 
-        assert_eq!(result.data.job_id, "job-123");
+        assert!(!result.data.job_id.is_empty());
         assert_eq!(result.data.quiz.name, "Draft Quiz");
         assert_eq!(result.data.quiz.created_by_user_id, "user-abc");
         assert_eq!(result.message, "Draft created successfully and processing started");

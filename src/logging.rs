@@ -1,6 +1,6 @@
 //! Logging utilities with correlation ID support for distributed tracing.
 //!
-//! Provides structured logging macros that automatically include correlation IDs
+//! Provides structured logging types that automatically include correlation IDs
 //! for tracking requests across service boundaries.
 
 use uuid::Uuid;
@@ -14,43 +14,6 @@ use uuid::Uuid;
 /// ```
 pub fn generate_correlation_id() -> String {
     Uuid::new_v4().to_string()
-}
-
-/// Macro for structured INFO level logging with correlation ID.
-///
-/// # Example
-/// ```
-/// info!(correlation_id = "abc-123", "Job {} started", job_id);
-/// ```
-#[macro_export]
-macro_rules! log_info {
-    ($target:expr, $correlation_id:expr, $($arg:tt)*) => {
-        log::info!(target: $target, "[{}] {}", $correlation_id, format!($($arg)*))
-    };
-}
-
-/// Macro for structured WARN level logging with correlation ID.
-#[macro_export]
-macro_rules! log_warn {
-    ($target:expr, $correlation_id:expr, $($arg:tt)*) => {
-        log::warn!(target: $target, "[{}] {}", $correlation_id, format!($($arg)*))
-    };
-}
-
-/// Macro for structured ERROR level logging with correlation ID.
-#[macro_export]
-macro_rules! log_error {
-    ($target:expr, $correlation_id:expr, $($arg:tt)*) => {
-        log::error!(target: $target, "[{}] {}", $correlation_id, format!($($arg)*))
-    };
-}
-
-/// Macro for structured DEBUG level logging with correlation ID.
-#[macro_export]
-macro_rules! log_debug {
-    ($target:expr, $correlation_id:expr, $($arg:tt)*) => {
-        log::debug!(target: $target, "[{}] {}", $correlation_id, format!($($arg)*))
-    };
 }
 
 /// Structured log fields for AI model interactions.

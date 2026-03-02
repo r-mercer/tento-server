@@ -7,7 +7,7 @@ use crate::services::agent_orchestrator_service::{AgentJob, JobStatus, JobStep};
 
 #[async_trait]
 pub trait AgentJobRepository: Send + Sync {
-    async fn create_job(&self, steps: Vec<JobStep>) -> Result<String, String>;
+    async fn create_job(&self, steps: Vec<JobStep>, job_id: &str, correlation_id: &str) -> Result<(), String>;
     async fn get_job(&self, job_id: &str) -> Result<Option<AgentJob>, String>;
     async fn get_job_status(&self, job_id: &str) -> Result<Option<JobStatus>, String>;
     async fn start_job(&self, job_id: &str) -> Result<(), String>;
@@ -66,16 +66,15 @@ impl MongoAgentJobRepository {
 
 #[async_trait]
 impl AgentJobRepository for MongoAgentJobRepository {
-    async fn create_job(&self, steps: Vec<JobStep>) -> Result<String, String> {
-        let job = AgentJob::new(steps);
-        let job_id = job.job_id.clone();
+    async fn create_job(&self, steps: Vec<JobStep>, job_id: &str, correlation_id: &str) -> Result<(), String> {
+        let job = AgentJob::new_with_ids(steps, job_id.to_string(), correlation_id.to_string());
 
         self.collection
             .insert_one(&job)
             .await
             .map_err(|e| format!("Failed to create job: {}", e))?;
 
-        Ok(job_id)
+        Ok(())
     }
 
     async fn get_job(&self, job_id: &str) -> Result<Option<AgentJob>, String> {

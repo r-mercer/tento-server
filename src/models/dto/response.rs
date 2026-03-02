@@ -221,7 +221,7 @@ impl QuizForTaking {
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, SimpleObject)]
-#[graphql(rename_fields = "snake_case")]
+#[graphql(rename_fields = "camelCase")]
 pub struct QuizAttemptResponse {
     pub id: String,
     pub quiz_id: String,
