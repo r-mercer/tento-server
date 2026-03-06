@@ -174,14 +174,19 @@ impl AgentOrchestrator {
             step_count
         );
 
-        let steps_with_job_ids = steps.into_iter().map(|mut step| {
-            if step.id.is_empty() {
-                step.id = Uuid::new_v4().to_string();
-            }
-            step
-        }).collect();
+        let steps_with_job_ids = steps
+            .into_iter()
+            .map(|mut step| {
+                if step.id.is_empty() {
+                    step.id = Uuid::new_v4().to_string();
+                }
+                step
+            })
+            .collect();
 
-        self.repository.create_job(steps_with_job_ids, &job_id, &correlation_id).await?;
+        self.repository
+            .create_job(steps_with_job_ids, &job_id, &correlation_id)
+            .await?;
         Ok((job_id, correlation_id))
     }
 
@@ -208,7 +213,11 @@ impl AgentOrchestrator {
         self.repository.get_job_status(job_id).await
     }
 
-    pub async fn start_job(&self, job_id: &str, correlation_id: Option<&str>) -> Result<(), String> {
+    pub async fn start_job(
+        &self,
+        job_id: &str,
+        correlation_id: Option<&str>,
+    ) -> Result<(), String> {
         if let Some(cid) = correlation_id {
             log::info!(
                 target: "agent_orchestrator",
@@ -240,12 +249,20 @@ impl AgentOrchestrator {
         self.repository.complete_step(job_id, result).await
     }
 
-    pub async fn fail_step(&self, job_id: &str, error: String, correlation_id: Option<&str>, step_name: Option<&str>, retry_count: Option<u32>, max_retries: Option<u32>) -> Result<(), String> {
+    pub async fn fail_step(
+        &self,
+        job_id: &str,
+        error: String,
+        correlation_id: Option<&str>,
+        step_name: Option<&str>,
+        retry_count: Option<u32>,
+        max_retries: Option<u32>,
+    ) -> Result<(), String> {
         if let Some(cid) = correlation_id {
             let step = step_name.unwrap_or("unknown");
             let retries = retry_count.unwrap_or(0);
             let max = max_retries.unwrap_or(0);
-            
+
             if retries >= max {
                 log::error!(
                     target: "agent_orchestrator",
@@ -271,7 +288,11 @@ impl AgentOrchestrator {
         self.repository.fail_step(job_id, error).await
     }
 
-    pub async fn pause_job(&self, job_id: &str, correlation_id: Option<&str>) -> Result<(), String> {
+    pub async fn pause_job(
+        &self,
+        job_id: &str,
+        correlation_id: Option<&str>,
+    ) -> Result<(), String> {
         if let Some(cid) = correlation_id {
             log::info!(
                 target: "agent_orchestrator",
@@ -283,7 +304,11 @@ impl AgentOrchestrator {
         self.repository.pause_job(job_id).await
     }
 
-    pub async fn resume_job(&self, job_id: &str, correlation_id: Option<&str>) -> Result<(), String> {
+    pub async fn resume_job(
+        &self,
+        job_id: &str,
+        correlation_id: Option<&str>,
+    ) -> Result<(), String> {
         if let Some(cid) = correlation_id {
             log::info!(
                 target: "agent_orchestrator",
@@ -309,7 +334,11 @@ impl AgentOrchestrator {
         self.repository.list_jobs(status_filter).await
     }
 
-    pub async fn delete_job(&self, job_id: &str, correlation_id: Option<&str>) -> Result<(), String> {
+    pub async fn delete_job(
+        &self,
+        job_id: &str,
+        correlation_id: Option<&str>,
+    ) -> Result<(), String> {
         if let Some(cid) = correlation_id {
             log::info!(
                 target: "agent_orchestrator",
@@ -384,7 +413,7 @@ impl AgentOrchestrator {
                                 {
                                     Ok(result) => {
                                         let duration_ms = start_time.elapsed().as_millis() as u64;
-                                        
+
                                         if let Err(e) = repository
                                             .complete_step(&job.job_id, Some(result))
                                             .await
@@ -421,7 +450,7 @@ impl AgentOrchestrator {
                                         let duration_ms = start_time.elapsed().as_millis() as u64;
                                         let retry_count = current_step.retry_count;
                                         let max_retries = current_step.max_retries;
-                                        
+
                                         log::error!(
                                             target: "agent_orchestrator",
                                             "[{}] Step {} failed for job {}: {}",

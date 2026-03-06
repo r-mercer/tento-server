@@ -17,7 +17,11 @@ pub struct JwtService {
 }
 
 impl JwtService {
-    pub fn new(secret: &SecretString, expiration_hours: i64, refresh_expiration_hours: i64) -> Self {
+    pub fn new(
+        secret: &SecretString,
+        expiration_hours: i64,
+        refresh_expiration_hours: i64,
+    ) -> Self {
         let secret_bytes = secret.expose_secret().as_bytes();
 
         Self {

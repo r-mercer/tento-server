@@ -115,7 +115,11 @@ impl StepHandler {
             .try_into()
             .map_err(|e| format!("Failed to parse quiz: {}", e))?;
 
-        match app_state.model_service.extraction_first_summary(&quiz.url).await {
+        match app_state
+            .model_service
+            .extraction_first_summary(&quiz.url)
+            .await
+        {
             Ok(summary_dto) => {
                 log::info!(
                     "Successfully created summary document for job {}",

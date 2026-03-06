@@ -94,7 +94,7 @@ impl ContentExtractor {
             .map_err(|e| format!("Readability extraction failed: {}", e))?;
 
         let document = Html::parse_fragment(&article.content);
-        
+
         let title = article.title.clone();
         let tables = self.extract_tables(&document);
         let headings = self.extract_headings(&document);
@@ -165,16 +165,13 @@ impl ContentExtractor {
 
     fn extract_headings(&self, document: &Html) -> Vec<HeadingContent> {
         let mut headings = Vec::new();
-        
+
         for level in 1..=6 {
             let selector = Selector::parse(&format!("h{}", level)).unwrap();
             for heading in document.select(&selector) {
                 let text = heading.text().collect::<String>().trim().to_string();
                 if !text.is_empty() {
-                    headings.push(HeadingContent {
-                        level,
-                        text,
-                    });
+                    headings.push(HeadingContent { level, text });
                 }
             }
         }
@@ -186,20 +183,20 @@ impl ContentExtractor {
         let mut output = String::new();
 
         let mut current_section = String::new();
-        
+
         for level in 1..=6 {
             let selector = Selector::parse(&format!("h{}", level)).unwrap();
             for heading in document.select(&selector) {
                 let heading_text = heading.text().collect::<String>().trim().to_string();
-                
+
                 if !current_section.is_empty() {
                     output.push_str(&current_section);
                     output.push_str("\n\n");
                 }
-                
+
                 output.push_str(&format!("### {}\n", heading_text));
                 current_section.clear();
-                
+
                 let mut sibling = heading.next_sibling();
                 while let Some(node) = sibling {
                     if let Some(element) = node.value().as_element() {
@@ -208,7 +205,7 @@ impl ContentExtractor {
                             break;
                         }
                     }
-                    
+
                     if let Some(text) = node.value().as_text() {
                         let text = text.trim();
                         if !text.is_empty() {
@@ -231,14 +228,21 @@ impl ContentExtractor {
                 if let Some(ref caption) = table.caption {
                     output.push_str(&format!("#### {}\n", caption));
                 }
-                
+
                 if !table.headers.is_empty() {
                     output.push_str(&table.headers.join(" | "));
                     output.push_str("\n");
-                    output.push_str(&table.headers.iter().map(|_| "---").collect::<Vec<_>>().join(" | "));
+                    output.push_str(
+                        &table
+                            .headers
+                            .iter()
+                            .map(|_| "---")
+                            .collect::<Vec<_>>()
+                            .join(" | "),
+                    );
                     output.push_str("\n");
                 }
-                
+
                 for row in &table.rows {
                     output.push_str(&row.join(" | "));
                     output.push_str("\n");
@@ -251,7 +255,7 @@ impl ContentExtractor {
 
     pub fn chunk_content(&self, content: &ExtractedContent) -> Vec<ContentChunk> {
         let text = &content.text_content;
-        
+
         if text.len() <= CHUNK_SIZE {
             return vec![ContentChunk {
                 index: 0,
@@ -276,27 +280,25 @@ impl ContentExtractor {
             if end > total_len {
                 end = total_len;
             } else {
-                if let Some(space_pos) = chars[start..end].iter().rposition(|&c| c == ' ' || c == '\n') {
+                if let Some(space_pos) = chars[start..end]
+                    .iter()
+                    .rposition(|&c| c == ' ' || c == '\n')
+                {
                     end = start + space_pos;
                 }
             }
 
             let chunk_text: String = chars[start..end].iter().collect();
-            
+
             let is_first = chunk_index == 0;
-            
+
             let final_content = if is_first {
                 format!(
                     "[CONTENT_START]\n{}\n[END_FIRST_CHUNK]\n{}",
-                    content.title,
-                    chunk_text
+                    content.title, chunk_text
                 )
             } else {
-                format!(
-                    "[CHUNK_{}]\n{}",
-                    chunk_index,
-                    chunk_text
-                )
+                format!("[CHUNK_{}]\n{}", chunk_index, chunk_text)
             };
 
             chunks.push(ContentChunk {
@@ -321,7 +323,7 @@ impl ContentExtractor {
             "[RETRIEVAL_TIMESTAMP] {}\n",
             content.metadata.extraction_timestamp
         ));
-        
+
         let status_str = match content.metadata.content_status {
             ContentStatus::Complete => "complete",
             ContentStatus::Partial => "partial",
@@ -360,14 +362,21 @@ impl ContentExtractor {
                 } else {
                     output.push_str(&format!("Table {}\n", i + 1));
                 }
-                
+
                 if !table.headers.is_empty() {
                     output.push_str(&table.headers.join(" | "));
                     output.push_str("\n");
-                    output.push_str(&table.headers.iter().map(|_| "---").collect::<Vec<_>>().join(" | "));
+                    output.push_str(
+                        &table
+                            .headers
+                            .iter()
+                            .map(|_| "---")
+                            .collect::<Vec<_>>()
+                            .join(" | "),
+                    );
                     output.push_str("\n");
                 }
-                
+
                 for row in &table.rows {
                     output.push_str(&row.join(" | "));
                     output.push_str("\n");

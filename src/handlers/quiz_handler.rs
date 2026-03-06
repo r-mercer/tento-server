@@ -40,7 +40,9 @@ mod tests {
     async fn get_quiz_route_registered_for_get() {
         let app = test::init_service(App::new().service(get_quiz)).await;
 
-        let req = test::TestRequest::post().uri("/api/quizzes/test-id").to_request();
+        let req = test::TestRequest::post()
+            .uri("/api/quizzes/test-id")
+            .to_request();
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
@@ -50,7 +52,9 @@ mod tests {
     async fn create_quiz_draft_route_registered_for_post() {
         let app = test::init_service(App::new().service(create_quiz_draft)).await;
 
-        let req = test::TestRequest::get().uri("/api/quizzes/drafts").to_request();
+        let req = test::TestRequest::get()
+            .uri("/api/quizzes/drafts")
+            .to_request();
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
@@ -60,7 +64,9 @@ mod tests {
     async fn get_quiz_without_required_app_data_returns_server_error() {
         let app = test::init_service(App::new().service(get_quiz)).await;
 
-        let req = test::TestRequest::get().uri("/api/quizzes/test-id").to_request();
+        let req = test::TestRequest::get()
+            .uri("/api/quizzes/test-id")
+            .to_request();
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_server_error());

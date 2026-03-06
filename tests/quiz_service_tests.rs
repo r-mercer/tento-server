@@ -6,10 +6,12 @@ use tokio::sync::RwLock;
 use tento_server::errors::AppError;
 use tento_server::models::domain::Quiz;
 use tento_server::models::dto::request::QuizDraftDto;
-use tento_server::repositories::QuizRepository;
-use tento_server::services::agent_orchestrator_service::{AgentOrchestrator, AgentJob, JobStep, JobStatus};
-use tento_server::services::quiz_service::QuizService;
 use tento_server::repositories::agent_job_repository::AgentJobRepository;
+use tento_server::repositories::QuizRepository;
+use tento_server::services::agent_orchestrator_service::{
+    AgentJob, AgentOrchestrator, JobStatus, JobStep,
+};
+use tento_server::services::quiz_service::QuizService;
 
 struct InMemoryQuizRepository {
     quizzes: Arc<RwLock<HashMap<String, Quiz>>>,
@@ -30,29 +32,54 @@ impl QuizRepository for InMemoryQuizRepository {
         Ok(q)
     }
 
-    async fn list_quizzes(&self, offset: i64, limit: i64) -> tento_server::errors::AppResult<(Vec<Quiz>, i64)> {
+    async fn list_quizzes(
+        &self,
+        offset: i64,
+        limit: i64,
+    ) -> tento_server::errors::AppResult<(Vec<Quiz>, i64)> {
         let quizzes = self.quizzes.read().await;
         let mut items: Vec<_> = quizzes.values().cloned().collect();
         items.sort_by(|a, b| a.id.cmp(&b.id));
         let total = items.len() as i64;
         let start = offset.max(0) as usize;
         let end = (start + limit.max(0) as usize).min(items.len());
-        let page = if start >= items.len() { vec![] } else { items[start..end].to_vec() };
+        let page = if start >= items.len() {
+            vec![]
+        } else {
+            items[start..end].to_vec()
+        };
         Ok((page, total))
     }
 
-    async fn list_quizzes_by_user(&self, user_id: &str, offset: i64, limit: i64) -> tento_server::errors::AppResult<(Vec<Quiz>, i64)> {
+    async fn list_quizzes_by_user(
+        &self,
+        user_id: &str,
+        offset: i64,
+        limit: i64,
+    ) -> tento_server::errors::AppResult<(Vec<Quiz>, i64)> {
         let quizzes = self.quizzes.read().await;
-        let mut items: Vec<_> = quizzes.values().cloned().filter(|q| q.created_by_user_id == user_id).collect();
+        let mut items: Vec<_> = quizzes
+            .values()
+            .cloned()
+            .filter(|q| q.created_by_user_id == user_id)
+            .collect();
         items.sort_by(|a, b| a.id.cmp(&b.id));
         let total = items.len() as i64;
         let start = offset.max(0) as usize;
         let end = (start + limit.max(0) as usize).min(items.len());
-        let page = if start >= items.len() { vec![] } else { items[start..end].to_vec() };
+        let page = if start >= items.len() {
+            vec![]
+        } else {
+            items[start..end].to_vec()
+        };
         Ok((page, total))
     }
 
-    async fn get_by_status_by_id(&self, id: &str, _status: &str) -> tento_server::errors::AppResult<Option<Quiz>> {
+    async fn get_by_status_by_id(
+        &self,
+        id: &str,
+        _status: &str,
+    ) -> tento_server::errors::AppResult<Option<Quiz>> {
         let q = self.quizzes.read().await.get(id).cloned();
         Ok(q)
     }
@@ -60,7 +87,10 @@ impl QuizRepository for InMemoryQuizRepository {
     async fn create_quiz_draft(&self, quiz: Quiz) -> tento_server::errors::AppResult<Quiz> {
         let mut w = self.quizzes.write().await;
         if w.contains_key(&quiz.id) {
-            return Err(AppError::AlreadyExists(format!("Quiz '{}' exists", quiz.id)));
+            return Err(AppError::AlreadyExists(format!(
+                "Quiz '{}' exists",
+                quiz.id
+            )));
         }
         w.insert(quiz.id.clone(), quiz.clone());
         Ok(quiz)
@@ -78,7 +108,7 @@ impl QuizRepository for InMemoryQuizRepository {
 
 // In-memory AgentJobRepository stub used by the real AgentOrchestrator
 struct StubAgentJobRepository {
-    jobs: Arc<RwLock<HashMap<String, AgentJob>>> ,
+    jobs: Arc<RwLock<HashMap<String, AgentJob>>>,
     pub created: Arc<RwLock<bool>>,
     pub metadata_set: Arc<RwLock<bool>>,
     pub started: Arc<RwLock<bool>>,
@@ -97,7 +127,12 @@ impl StubAgentJobRepository {
 
 #[async_trait]
 impl AgentJobRepository for StubAgentJobRepository {
-    async fn create_job(&self, steps: Vec<JobStep>, job_id: &str, correlation_id: &str) -> Result<(), String> {
+    async fn create_job(
+        &self,
+        steps: Vec<JobStep>,
+        job_id: &str,
+        correlation_id: &str,
+    ) -> Result<(), String> {
         let job = AgentJob::new_with_ids(steps, job_id.to_string(), correlation_id.to_string());
         self.jobs.write().await.insert(job_id.to_string(), job);
         *self.created.write().await = true;
@@ -122,17 +157,38 @@ impl AgentJobRepository for StubAgentJobRepository {
         Err(format!("Job {} not found", job_id))
     }
 
-    async fn complete_step(&self, _job_id: &str, _result: Option<serde_json::Value>) -> Result<(), String> { Ok(()) }
-    async fn fail_step(&self, _job_id: &str, _error: String) -> Result<(), String> { Ok(()) }
-    async fn pause_job(&self, _job_id: &str) -> Result<(), String> { Ok(()) }
-    async fn resume_job(&self, _job_id: &str) -> Result<(), String> { Ok(()) }
-    async fn list_jobs(&self, _status_filter: Option<JobStatus>) -> Result<Vec<AgentJob>, String> { Ok(vec![]) }
+    async fn complete_step(
+        &self,
+        _job_id: &str,
+        _result: Option<serde_json::Value>,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+    async fn fail_step(&self, _job_id: &str, _error: String) -> Result<(), String> {
+        Ok(())
+    }
+    async fn pause_job(&self, _job_id: &str) -> Result<(), String> {
+        Ok(())
+    }
+    async fn resume_job(&self, _job_id: &str) -> Result<(), String> {
+        Ok(())
+    }
+    async fn list_jobs(&self, _status_filter: Option<JobStatus>) -> Result<Vec<AgentJob>, String> {
+        Ok(vec![])
+    }
     async fn delete_job(&self, job_id: &str) -> Result<(), String> {
         let mut jobs = self.jobs.write().await;
-        if jobs.remove(job_id).is_some() { Ok(()) } else { Err(format!("Job {} not found", job_id)) }
+        if jobs.remove(job_id).is_some() {
+            Ok(())
+        } else {
+            Err(format!("Job {} not found", job_id))
+        }
     }
     async fn save(&self, job: &AgentJob) -> Result<(), String> {
-        self.jobs.write().await.insert(job.job_id.clone(), job.clone());
+        self.jobs
+            .write()
+            .await
+            .insert(job.job_id.clone(), job.clone());
         // mark metadata_set if quiz_id metadata stored
         if job.results.contains_key("quiz_id") {
             *self.metadata_set.write().await = true;
@@ -166,7 +222,14 @@ async fn test_list_quizzes_and_by_user() {
     {
         let mut w = repo.quizzes.write().await;
         for i in 0..5 {
-            let q = Quiz::new_draft(&format!("quiz-{}", i), "user-a", 5, 3, 2, "https://example.com");
+            let q = Quiz::new_draft(
+                &format!("quiz-{}", i),
+                "user-a",
+                5,
+                3,
+                2,
+                "https://example.com",
+            );
             let mut q = q;
             q.id = format!("quiz-{}", i);
             if i % 2 == 0 {
@@ -182,7 +245,10 @@ async fn test_list_quizzes_and_by_user() {
     assert_eq!(total, 5);
     assert_eq!(list.len(), 5);
 
-    let (user_list, user_total) = service.list_quizzes_by_user("user-b", 0, 10).await.expect("user list");
+    let (user_list, user_total) = service
+        .list_quizzes_by_user("user-b", 0, 10)
+        .await
+        .expect("user list");
     assert!(user_total >= 0);
     assert!(user_list.len() > 0);
 }
@@ -197,13 +263,16 @@ async fn test_create_quiz_draft_starts_job() {
 
     let request = QuizDraftDto {
         name: "New Draft".to_string(),
-        question_count: 5,
-        required_score: 70,
+        question_count: 10,
+        required_score: 7,
         attempt_limit: 3,
         url: "https://example.com/article".to_string(),
     };
 
-    let resp = service.create_quiz_draft(request, "user-1").await.expect("create should succeed");
+    let resp = service
+        .create_quiz_draft(request, "user-1")
+        .await
+        .expect("create should succeed");
 
     assert!(resp.data.quiz.id.len() > 0);
     // job id should be returned and non-empty

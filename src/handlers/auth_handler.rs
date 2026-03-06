@@ -315,7 +315,10 @@ mod tests {
 
         let json = serde_json::to_value(response).expect("response should serialize");
 
-        assert_eq!(json.get("token").and_then(|v| v.as_str()), Some("access-token"));
+        assert_eq!(
+            json.get("token").and_then(|v| v.as_str()),
+            Some("access-token")
+        );
         assert_eq!(
             json.get("refresh_token").and_then(|v| v.as_str()),
             Some("refresh-token")
@@ -327,7 +330,9 @@ mod tests {
     async fn refresh_token_route_registered_for_post() {
         let app = actix_test::init_service(App::new().service(refresh_token)).await;
 
-        let req = actix_test::TestRequest::get().uri("/auth/refresh").to_request();
+        let req = actix_test::TestRequest::get()
+            .uri("/auth/refresh")
+            .to_request();
         let resp = actix_test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());
@@ -337,7 +342,9 @@ mod tests {
     async fn logout_route_registered_for_post() {
         let app = actix_test::init_service(App::new().service(logout)).await;
 
-        let req = actix_test::TestRequest::get().uri("/auth/logout").to_request();
+        let req = actix_test::TestRequest::get()
+            .uri("/auth/logout")
+            .to_request();
         let resp = actix_test::call_service(&app, req).await;
 
         assert!(resp.status().is_client_error());

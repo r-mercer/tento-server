@@ -166,7 +166,11 @@ impl QueryRoot {
         let offset = offset.unwrap_or(0).max(0);
         let limit = limit.unwrap_or(10).clamp(1, 50);
 
-        let quiz_id_opt = quiz_id.and_then(|id| parse_id(&id).ok());
+        let quiz_id_opt = if let Some(id) = quiz_id {
+            Some(parse_id(&id)?)
+        } else {
+            None
+        };
 
         let (attempts, total) = state
             .quiz_attempt_repository

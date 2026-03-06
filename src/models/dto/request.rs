@@ -45,17 +45,28 @@ pub struct QuizDraftDto {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
 
-    // #[validate(required)]
+    #[validate(range(min = 1, max = 100))]
     pub question_count: i16,
-    //
-    // #[validate(required]
+
+    #[validate(range(min = 1, max = 100))]
     pub required_score: i16,
-    //
-    // #[validate(required)]
+
+    #[validate(range(min = 1, max = 10))]
     pub attempt_limit: i16,
 
     #[validate(url)]
     pub url: String,
+}
+
+impl QuizDraftDto {
+    pub(crate) fn validate_score_count(&self) -> AppResult<()> {
+        if self.required_score > self.question_count {
+            return Err(AppError::ValidationError(
+                "required_score cannot exceed question_count".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 impl QuizDraftDto {
     pub(crate) fn from_quiz(quiz: crate::models::domain::Quiz) -> QuizDraftDto {

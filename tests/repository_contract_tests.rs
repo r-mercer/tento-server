@@ -171,7 +171,11 @@ impl QuizAttemptRepository for InMemoryQuizAttemptRepository {
         Ok(attempts.get(id).cloned())
     }
 
-    async fn find_by_user_and_quiz(&self, user_id: &str, quiz_id: &str) -> AppResult<Vec<QuizAttempt>> {
+    async fn find_by_user_and_quiz(
+        &self,
+        user_id: &str,
+        quiz_id: &str,
+    ) -> AppResult<Vec<QuizAttempt>> {
         let attempts = self.attempts.read().await;
         let mut items: Vec<_> = attempts
             .values()
@@ -252,9 +256,12 @@ impl UserRepository for InMemoryUserRepository {
         }
 
         if let Some(github_id) = &user.github_id {
-            let duplicate = users
-                .values()
-                .any(|u| u.github_id.as_ref().map(|gid| gid == github_id).unwrap_or(false));
+            let duplicate = users.values().any(|u| {
+                u.github_id
+                    .as_ref()
+                    .map(|gid| gid == github_id)
+                    .unwrap_or(false)
+            });
             if duplicate {
                 return Err(AppError::AlreadyExists(format!(
                     "User with github_id '{}' already exists",
@@ -313,10 +320,9 @@ impl UserRepository for InMemoryUserRepository {
 
     async fn update(&self, username: &str, update_doc: Document) -> AppResult<User> {
         let mut users = self.users_by_username.write().await;
-        let mut user = users
-            .get(username)
-            .cloned()
-            .ok_or_else(|| AppError::NotFound(format!("User with username '{}' not found", username)))?;
+        let mut user = users.get(username).cloned().ok_or_else(|| {
+            AppError::NotFound(format!("User with username '{}' not found", username))
+        })?;
 
         if let Some(Bson::Document(set_doc)) = update_doc.get("$set") {
             if let Some(Bson::String(first_name)) = set_doc.get("first_name") {
@@ -335,10 +341,9 @@ impl UserRepository for InMemoryUserRepository {
     }
 
     async fn upsert_by_github_id(&self, user: User) -> AppResult<User> {
-        let github_id = user
-            .github_id
-            .clone()
-            .ok_or_else(|| AppError::ValidationError("User must have a github_id for upsert".to_string()))?;
+        let github_id = user.github_id.clone().ok_or_else(|| {
+            AppError::ValidationError("User must have a github_id for upsert".to_string())
+        })?;
 
         let mut users = self.users_by_username.write().await;
 
@@ -373,7 +378,14 @@ impl UserRepository for InMemoryUserRepository {
 }
 
 fn make_quiz(id: &str, name: &str, user_id: &str) -> tento_server::models::domain::Quiz {
-    let mut quiz = tento_server::models::domain::Quiz::new_draft(name, user_id, 5, 70, 3, "https://example.com");
+    let mut quiz = tento_server::models::domain::Quiz::new_draft(
+        name,
+        user_id,
+        5,
+        70,
+        3,
+        "https://example.com",
+    );
     quiz.id = id.to_string();
     quiz
 }
@@ -421,10 +433,15 @@ async fn quiz_repository_crud_and_error_paths() {
     let quiz1 = make_quiz("quiz-1", "Quiz One", "user-a");
     let quiz2 = make_quiz("quiz-2", "Quiz Two", "user-a");
 
-    let created1 = repo.create_quiz_draft(quiz1.clone()).await.expect("create quiz1");
+    let created1 = repo
+        .create_quiz_draft(quiz1.clone())
+        .await
+        .expect("create quiz1");
     assert_eq!(created1.id, "quiz-1");
 
-    repo.create_quiz_draft(quiz2.clone()).await.expect("create quiz2");
+    repo.create_quiz_draft(quiz2.clone())
+        .await
+        .expect("create quiz2");
 
     let duplicate = repo.create_quiz_draft(quiz1.clone()).await;
     assert!(matches!(duplicate, Err(AppError::AlreadyExists(_))));
@@ -432,7 +449,10 @@ async fn quiz_repository_crud_and_error_paths() {
     let found = repo.find_by_id("quiz-1").await.expect("find should work");
     assert!(found.is_some());
 
-    let (page, total) = repo.list_quizzes(0, 1).await.expect("pagination should work");
+    let (page, total) = repo
+        .list_quizzes(0, 1)
+        .await
+        .expect("pagination should work");
     assert_eq!(total, 2);
     assert_eq!(page.len(), 1);
 
@@ -457,10 +477,15 @@ async fn quiz_repository_crud_and_error_paths() {
 
     let mut quiz1_updated = quiz1.clone();
     quiz1_updated.name = "Updated Quiz One".to_string();
-    let updated = repo.update(quiz1_updated.clone()).await.expect("update should work");
+    let updated = repo
+        .update(quiz1_updated.clone())
+        .await
+        .expect("update should work");
     assert_eq!(updated.name, "Updated Quiz One");
 
-    let missing_update = repo.update(make_quiz("quiz-missing", "Missing", "user-z")).await;
+    let missing_update = repo
+        .update(make_quiz("quiz-missing", "Missing", "user-z"))
+        .await;
     assert!(matches!(missing_update, Err(AppError::NotFound(_))));
 }
 
@@ -472,14 +497,23 @@ async fn quiz_attempt_repository_crud_counts_and_error_paths() {
     let attempt2 = make_attempt("attempt-2", "user-a", "quiz-1", 2);
     let attempt3 = make_attempt("attempt-3", "user-a", "quiz-2", 1);
 
-    repo.create(attempt1.clone()).await.expect("create attempt1");
-    repo.create(attempt2.clone()).await.expect("create attempt2");
-    repo.create(attempt3.clone()).await.expect("create attempt3");
+    repo.create(attempt1.clone())
+        .await
+        .expect("create attempt1");
+    repo.create(attempt2.clone())
+        .await
+        .expect("create attempt2");
+    repo.create(attempt3.clone())
+        .await
+        .expect("create attempt3");
 
     let duplicate = repo.create(attempt1.clone()).await;
     assert!(matches!(duplicate, Err(AppError::AlreadyExists(_))));
 
-    let found = repo.find_by_id("attempt-1").await.expect("find should work");
+    let found = repo
+        .find_by_id("attempt-1")
+        .await
+        .expect("find should work");
     assert!(found.is_some());
 
     let by_user_quiz = repo
@@ -526,7 +560,10 @@ async fn user_repository_crud_upsert_and_error_paths() {
     repo.create(user2.clone()).await.expect("create user2");
 
     let duplicate_username = repo.create(make_user("alice", Some("gh-3"))).await;
-    assert!(matches!(duplicate_username, Err(AppError::AlreadyExists(_))));
+    assert!(matches!(
+        duplicate_username,
+        Err(AppError::AlreadyExists(_))
+    ));
 
     let duplicate_github = repo.create(make_user("charlie", Some("gh-1"))).await;
     assert!(matches!(duplicate_github, Err(AppError::AlreadyExists(_))));
@@ -542,7 +579,10 @@ async fn user_repository_crud_upsert_and_error_paths() {
     assert!(found_by_id.is_some());
 
     let updated = repo
-        .update("alice", doc! { "$set": { "first_name": "AliceUpdated", "email": "alice.updated@example.com" } })
+        .update(
+            "alice",
+            doc! { "$set": { "first_name": "AliceUpdated", "email": "alice.updated@example.com" } },
+        )
         .await
         .expect("update should work");
     assert_eq!(updated.first_name, "AliceUpdated");

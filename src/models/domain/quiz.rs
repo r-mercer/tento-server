@@ -91,7 +91,14 @@ mod tests {
 
     #[test]
     fn new_draft_initializes_expected_defaults() {
-        let quiz = Quiz::new_draft("Rust Basics", "user-1", 10, 80, 2, "https://example.com/rust");
+        let quiz = Quiz::new_draft(
+            "Rust Basics",
+            "user-1",
+            10,
+            80,
+            2,
+            "https://example.com/rust",
+        );
 
         assert_eq!(quiz.name, "Rust Basics");
         assert_eq!(quiz.created_by_user_id, "user-1");

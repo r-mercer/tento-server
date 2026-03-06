@@ -78,6 +78,7 @@ impl QuizService {
         user_id: &str,
     ) -> AppResult<CreateQuizDraftResponse> {
         request.validate()?;
+        request.validate_score_count()?;
 
         let quiz = Quiz::new_draft(
             &request.name,
@@ -366,12 +367,16 @@ mod tests {
         let mut mock_repo = MockQuizRepo::new();
         let mut mock_job_repo = MockAgentJobRepo::new();
 
-        mock_repo.expect_create_quiz_draft().returning(|quiz| Ok(quiz));
+        mock_repo
+            .expect_create_quiz_draft()
+            .returning(|quiz| Ok(quiz));
 
-        mock_job_repo.expect_create_job().returning(|steps, _job_id, _correlation_id| {
-            assert!(!steps.is_empty());
-            Ok(())
-        });
+        mock_job_repo
+            .expect_create_job()
+            .returning(|steps, _job_id, _correlation_id| {
+                assert!(!steps.is_empty());
+                Ok(())
+            });
 
         mock_job_repo.expect_get_job().returning(|_job_id| {
             Ok(Some(AgentJob {
@@ -395,16 +400,14 @@ mod tests {
             Ok(())
         });
 
-        mock_job_repo.expect_start_job().returning(|_job_id| {
-            Ok(())
-        });
+        mock_job_repo.expect_start_job().returning(|_job_id| Ok(()));
 
         let service = create_service(mock_repo, mock_job_repo);
 
         let request = QuizDraftDto {
             name: "Draft Quiz".to_string(),
-            question_count: 8,
-            required_score: 75,
+            question_count: 10,
+            required_score: 7,
             attempt_limit: 3,
             url: "https://example.com/learning".to_string(),
         };
@@ -417,6 +420,9 @@ mod tests {
         assert!(!result.data.job_id.is_empty());
         assert_eq!(result.data.quiz.name, "Draft Quiz");
         assert_eq!(result.data.quiz.created_by_user_id, "user-abc");
-        assert_eq!(result.message, "Draft created successfully and processing started");
+        assert_eq!(
+            result.message,
+            "Draft created successfully and processing started"
+        );
     }
 }
