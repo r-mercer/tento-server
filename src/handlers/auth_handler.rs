@@ -11,6 +11,45 @@ use crate::{
     models::domain::{hash_token, user::User, RefreshToken},
 };
 
+// Helper to validate a provided redirect_uri against an allowlist and return
+// the effective redirect URI to use in OAuth token exchange.
+fn validate_and_select_redirect_uri(
+    allowed_origins: &[String],
+    provided_uri: Option<&str>,
+) -> Result<String, AppError> {
+    if let Some(provided) = provided_uri {
+        let parsed = url::Url::parse(provided).map_err(|_| {
+            log::warn!("Invalid redirect_uri provided: {}", provided);
+            AppError::BadRequest("Invalid redirect_uri".to_string())
+        })?;
+
+        let provided_origin = if let Some(host) = parsed.host_str() {
+            if let Some(port) = parsed.port() {
+                format!("{}://{}:{}", parsed.scheme(), host, port)
+            } else {
+                format!("{}://{}", parsed.scheme(), host)
+            }
+        } else {
+            return Err(AppError::BadRequest("Invalid redirect_uri".to_string()));
+        };
+
+        let is_allowed = allowed_origins.iter().any(|allowed| allowed == &provided_origin);
+        if !is_allowed {
+            log::warn!("Blocked redirect to unallowed origin: {}", provided_origin);
+            return Err(AppError::BadRequest("Redirect URI not allowed".to_string()));
+        }
+
+        Ok(provided.to_string())
+    } else {
+        let allowed_base = allowed_origins
+            .first()
+            .map(|s| s.clone())
+            .unwrap_or_else(|| "http://localhost:5173".to_string());
+
+        Ok(format!("{}/auth/callback", allowed_base.trim_end_matches('/')))
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CallbackParams {
     code: String,
@@ -35,30 +74,27 @@ pub async fn auth_github_callback(
     web::Query(params): web::Query<CallbackParams>,
 ) -> Result<HttpResponse, AppError> {
     log::info!("=== GitHub OAuth Callback Started ===");
-    log::info!("Redirect URI: {:?}", params.redirect_uri);
 
-    let client_id = &state.config.gh_client_id;
-    let client_secret = state.config.gh_client_secret.expose_secret();
+    // Validate and select redirect URI using helper.
+    let redirect_uri = validate_and_select_redirect_uri(
+        &state.config.allowed_redirect_origins,
+        params.redirect_uri.as_deref(),
+    )?;
+    log::info!("Using redirect_uri from allowlist (origin validated)");
 
-    log::info!("Client ID configured for GitHub OAuth callback");
-
+    // Prepare HTTP client and OAuth client credentials
     let client = reqwest::Client::new();
-
-    let redirect_uri = params
-        .redirect_uri
-        .as_deref()
-        .unwrap_or("http://localhost:5173/auth/callback");
-
-    log::info!("Using redirect_uri: {}", redirect_uri);
+    let client_id = state.config.gh_client_id.clone();
+    let client_secret = state.config.gh_client_secret.expose_secret().to_string();
 
     let token_response = client
         .post("https://github.com/login/oauth/access_token")
         .header("accept", "application/json")
         .form(&[
             ("code", params.code.as_str()),
-            ("client_id", client_id),
-            ("client_secret", client_secret),
-            ("redirect_uri", redirect_uri),
+            ("client_id", client_id.as_str()),
+            ("client_secret", client_secret.as_str()),
+            ("redirect_uri", redirect_uri.as_str()),
         ])
         .send()
         .await

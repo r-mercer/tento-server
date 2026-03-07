@@ -4483,6 +4483,7 @@ dependencies = [
  "sha2",
  "thiserror 2.0.18",
  "tokio",
+ "url",
  "uuid",
  "validator",
 ]

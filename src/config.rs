@@ -23,6 +23,7 @@ pub struct Config {
     pub openai_api_key: SecretString,
     pub openai_base_url: String,
     pub cors_origins: Vec<String>,
+    pub allowed_redirect_origins: Vec<String>,
 }
 
 impl Config {
@@ -81,6 +82,33 @@ impl Config {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect(),
+            allowed_redirect_origins: env::var("ALLOWED_REDIRECT_ORIGINS")
+                .unwrap_or_else(|_| "http://localhost:5173,http://localhost:3000".to_string())
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .map(|s| Self::canonicalize_origin(&s))
+                .collect(),
+        }
+    }
+
+    // Canonicalize an origin-like URL into a normalized origin string: scheme://host[:port]
+    fn canonicalize_origin(raw: &str) -> String {
+        // Use the url crate to parse and rebuild an origin string. Fall back to the
+        // trimmed input when parsing fails (preserve behavior for tests / legacy values).
+        match url::Url::parse(raw) {
+            Ok(parsed) => {
+                if let Some(host) = parsed.host_str() {
+                    if let Some(port) = parsed.port() {
+                        format!("{}://{}:{}", parsed.scheme(), host, port)
+                    } else {
+                        format!("{}://{}", parsed.scheme(), host)
+                    }
+                } else {
+                    raw.trim_end_matches('/').to_string()
+                }
+            }
+            Err(_) => raw.trim_end_matches('/').to_string(),
         }
     }
 
@@ -163,6 +191,21 @@ impl Config {
             ));
         }
 
+        if self.allowed_redirect_origins.is_empty() {
+            return Err(AppError::ValidationError(
+                "FATAL: ALLOWED_REDIRECT_ORIGINS cannot be empty. At least one redirect origin is required.".to_string(),
+            ));
+        }
+
+        for origin in &self.allowed_redirect_origins {
+            if !origin.starts_with("http://") && !origin.starts_with("https://") {
+                return Err(AppError::ValidationError(format!(
+                    "FATAL: ALLOWED_REDIRECT_ORIGINS contains invalid origin '{}'. Must be a valid HTTP/HTTPS URL.",
+                    origin
+                )));
+            }
+        }
+
         Ok(())
     }
 
@@ -187,6 +230,10 @@ impl Config {
             openai_api_key: SecretString::from("sk-test-key".to_string()),
             openai_base_url: "http://localhost:1234".to_string(),
             cors_origins: vec![
+                "http://localhost:5173".to_string(),
+                "http://localhost:3000".to_string(),
+            ],
+            allowed_redirect_origins: vec![
                 "http://localhost:5173".to_string(),
                 "http://localhost:3000".to_string(),
             ],

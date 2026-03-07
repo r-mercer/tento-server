@@ -2,7 +2,6 @@ use actix_cors::Cors;
 use actix_web::http;
 use actix_web::{middleware::Logger, web, App, HttpMessage, HttpServer};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
-use secrecy::ExposeSecret as _;
 use std::env;
 
 pub mod app_state;
@@ -60,14 +59,10 @@ async fn main() -> std::io::Result<()> {
         "GitHub OAuth configured with Client ID: {}",
         config.gh_client_id
     );
-    log::info!(
-        "GitHub OAuth Client Secret is {} characters",
-        config.gh_client_secret.expose_secret().len()
-    );
 
     let app_state = AppState::new(config.clone())
         .await
-        .expect("Failed to initialize application state");
+        .map_err(std::io::Error::other)?;
 
     let app_state = std::sync::Arc::new(app_state);
 
@@ -80,7 +75,7 @@ async fn main() -> std::io::Result<()> {
         .agent_orchestrator
         .start_worker()
         .await
-        .expect("Failed to start background worker");
+        .map_err(std::io::Error::other)?;
 
     let schema = create_schema((*app_state).clone());
     let jwt_service = app_state.jwt_service.clone();
