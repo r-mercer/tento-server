@@ -20,6 +20,7 @@ use crate::{
 #[derive(Clone)]
 pub struct AppState {
     pub user_service: Arc<UserService>,
+    pub user_repository: Arc<dyn UserRepository>,
     pub quiz_service: Arc<QuizService>,
     pub quiz_attempt_repository: Arc<dyn QuizAttemptRepository>,
     pub summary_document_service: Arc<SummaryDocumentService>,
@@ -37,7 +38,7 @@ impl AppState {
 
         let user_repository = Arc::new(MongoUserRepository::new(&db));
         user_repository.ensure_indexes().await?;
-        let user_service = Arc::new(UserService::new(user_repository));
+        let user_service = Arc::new(UserService::new(user_repository.clone()));
 
         let agent_job_repository = Arc::new(MongoAgentJobRepository::new(&db));
         agent_job_repository.ensure_indexes().await?;
@@ -74,6 +75,7 @@ impl AppState {
 
         Ok(Self {
             user_service,
+            user_repository,
             quiz_service,
             quiz_attempt_repository,
             summary_document_service,

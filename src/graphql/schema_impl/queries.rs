@@ -4,7 +4,7 @@ use crate::{
     app_state::AppState,
     auth::{
         can_view_quiz_attempt, can_view_quiz_results, extract_claims_from_context, require_admin,
-        require_owner_or_admin,
+        require_user_owner,
     },
     errors::{AppError, AppResult},
     graphql::helpers::{parse_id, validate_quiz_available_for_taking},
@@ -25,7 +25,7 @@ impl QueryRoot {
         let state = ctx.data::<AppState>()?;
         let claims = extract_claims_from_context(ctx)?;
 
-        require_owner_or_admin(&claims, &username)?;
+        require_user_owner(&claims, &username, &state.user_repository).await?;
 
         state.user_service.get_user(&username).await
     }

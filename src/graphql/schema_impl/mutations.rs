@@ -2,7 +2,7 @@ use async_graphql::{Context, Object};
 
 use crate::{
     app_state::AppState,
-    auth::{extract_claims_from_context, require_owner_or_admin},
+    auth::{extract_claims_from_context, require_quiz_owner, require_user_owner},
     errors::AppResult,
     graphql::helpers::parse_id,
     models::{
@@ -44,7 +44,7 @@ impl MutationRoot {
         let state = ctx.data::<AppState>()?;
         let claims = extract_claims_from_context(ctx)?;
 
-        require_owner_or_admin(&claims, &username)?;
+        require_user_owner(&claims, &username, &state.user_repository).await?;
 
         state.user_service.update_user(&username, input).await
     }
@@ -57,7 +57,7 @@ impl MutationRoot {
         let state = ctx.data::<AppState>()?;
         let claims = extract_claims_from_context(ctx)?;
 
-        require_owner_or_admin(&claims, &username)?;
+        require_user_owner(&claims, &username, &state.user_repository).await?;
 
         state.user_service.delete_user(&username).await
     }
@@ -114,7 +114,7 @@ impl MutationRoot {
 
         let existing_quiz = state.quiz_service.get_quiz(&input.id).await?;
 
-        require_owner_or_admin(&claims, &existing_quiz.created_by_user_id)?;
+        require_quiz_owner(&claims, &existing_quiz.created_by_user_id)?;
 
         let updated_quiz = state.quiz_service.update_quiz_partial(input).await?;
 

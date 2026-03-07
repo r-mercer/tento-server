@@ -4,7 +4,7 @@ use actix_web::{get, post, web, HttpResponse};
 
 use crate::{
     app_state::AppState,
-    auth::{require_admin, require_owner_or_admin, AuthenticatedUser},
+    auth::{require_admin, require_user_owner, AuthenticatedUser},
     errors::AppError,
     models::dto::request::{CreateUserRequestDto, PaginationParams, UpdateUserRequestDto},
 };
@@ -23,9 +23,9 @@ async fn create_user(
 async fn get_user(
     state: web::Data<Arc<AppState>>,
     username: web::Path<String>,
-    auth: AuthenticatedUser, // Require authentication
+    auth: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
-    require_owner_or_admin(&auth.0, &username)?;
+    require_user_owner(&auth.0, &username, &state.user_repository).await?;
 
     let user = state.user_service.get_user(&username).await?;
     Ok(HttpResponse::Ok().json(user))
@@ -54,7 +54,7 @@ async fn update_user(
     request: web::Json<UpdateUserRequestDto>,
     auth: AuthenticatedUser, // Require authentication
 ) -> Result<HttpResponse, AppError> {
-    require_owner_or_admin(&auth.0, &username)?;
+    require_user_owner(&auth.0, &username, &state.user_repository).await?;
 
     let response = state
         .user_service
@@ -69,7 +69,7 @@ async fn delete_user(
     username: web::Path<String>,
     auth: AuthenticatedUser, // Require authentication
 ) -> Result<HttpResponse, AppError> {
-    require_owner_or_admin(&auth.0, &username)?;
+    require_user_owner(&auth.0, &username, &state.user_repository).await?;
 
     let response = state.user_service.delete_user(&username).await?;
     Ok(HttpResponse::Ok().json(response))

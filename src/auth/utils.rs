@@ -1,9 +1,11 @@
 use async_graphql::Context;
+use std::sync::Arc;
 
 use crate::{
     auth::Claims,
     errors::{AppError, AppResult},
     models::domain::user::UserRole,
+    repositories::UserRepository,
 };
 
 pub fn require_admin(claims: &Claims) -> AppResult<()> {
@@ -30,6 +32,34 @@ pub fn require_quiz_owner(claims: &Claims, quiz_owner_id: &str) -> AppResult<()>
             "You can only access your own quizzes".to_string(),
         ));
     }
+    Ok(())
+}
+
+pub async fn require_user_owner(
+    claims: &Claims,
+    username: &str,
+    user_repository: &Arc<dyn UserRepository>,
+) -> AppResult<()> {
+    if claims.role == UserRole::Admin {
+        return Ok(());
+    }
+
+    let user = user_repository
+        .find_by_username(username)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("User '{}' not found", username)))?;
+
+    let user_id = user
+        .id
+        .map(|oid| oid.to_hex())
+        .unwrap_or_else(|| user.username.clone());
+
+    if claims.sub != user_id {
+        return Err(AppError::Unauthorized(
+            "You can only access your own resources".to_string(),
+        ));
+    }
+
     Ok(())
 }
 
