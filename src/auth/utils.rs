@@ -16,10 +16,18 @@ pub fn require_admin(claims: &Claims) -> AppResult<()> {
 }
 
 pub fn require_owner_or_admin(claims: &Claims, resource_owner: &str) -> AppResult<()> {
-    // Resource owner is expected to be a username in most callers; compare against claims.username
-    if claims.role != UserRole::Admin && claims.username != resource_owner {
+    if claims.role != UserRole::Admin && claims.sub != resource_owner {
         return Err(AppError::Unauthorized(
             "You can only access your own resources".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+pub fn require_quiz_owner(claims: &Claims, quiz_owner_id: &str) -> AppResult<()> {
+    if claims.role != UserRole::Admin && claims.sub != quiz_owner_id {
+        return Err(AppError::Forbidden(
+            "You can only access your own quizzes".to_string(),
         ));
     }
     Ok(())
@@ -131,5 +139,23 @@ mod tests {
         let user_id = "550e8400-e29b-41d4-a716-446655440000";
         let attempt_user_id = "550e8400-e29b-41d4-a716-446655440001";
         assert!(can_view_quiz_attempt(user_id, attempt_user_id).is_err());
+    }
+
+    #[test]
+    fn test_require_quiz_owner_as_owner() {
+        let claims = create_test_claims("user-123", UserRole::User);
+        assert!(require_quiz_owner(&claims, "user-123").is_ok());
+    }
+
+    #[test]
+    fn test_require_quiz_owner_as_admin() {
+        let claims = create_test_claims("admin-1", UserRole::Admin);
+        assert!(require_quiz_owner(&claims, "other-user").is_ok());
+    }
+
+    #[test]
+    fn test_require_quiz_owner_forbidden() {
+        let claims = create_test_claims("user-123", UserRole::User);
+        assert!(require_quiz_owner(&claims, "other-user").is_err());
     }
 }

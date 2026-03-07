@@ -3,17 +3,26 @@ use std::sync::Arc;
 use actix_web::{get, post, web, HttpResponse};
 
 use crate::{
-    app_state::AppState, auth::AuthenticatedUser, errors::AppError,
-    models::dto::request::QuizDraftDto,
+    app_state::AppState,
+    auth::AuthenticatedUser,
+    errors::AppError,
+    models::{domain::user::UserRole, dto::request::QuizDraftDto},
 };
 
 #[get("/api/quizzes/{id}")]
 async fn get_quiz(
     state: web::Data<Arc<AppState>>,
     id: web::Path<String>,
-    _auth: AuthenticatedUser,
+    auth: AuthenticatedUser,
 ) -> Result<HttpResponse, AppError> {
     let quiz = state.quiz_service.get_quiz(&id.into_inner()).await?;
+
+    if quiz.created_by_user_id != auth.0.sub && auth.0.role != UserRole::Admin {
+        return Err(AppError::Forbidden(
+            "You can only access your own quizzes".to_string(),
+        ));
+    }
+
     Ok(HttpResponse::Ok().json(quiz))
 }
 
