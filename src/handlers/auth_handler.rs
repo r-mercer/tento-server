@@ -41,10 +41,9 @@ fn validate_and_select_redirect_uri(
 
         Ok(provided.to_string())
     } else {
-        let allowed_base = allowed_origins
-            .first()
-            .map(|s| s.clone())
-            .unwrap_or_else(|| "http://localhost:5173".to_string());
+        let allowed_base = allowed_origins.first().cloned().unwrap_or_else(|| {
+            "http://localhost:5173".to_string()
+        });
 
         Ok(format!("{}/auth/callback", allowed_base.trim_end_matches('/')))
     }
