@@ -268,7 +268,12 @@ impl ContentExtractor {
         let mut chunks = Vec::new();
         let chars: Vec<char> = text.chars().collect();
         let total_len = chars.len();
-        let chunk_count = (total_len / CHUNK_SIZE) + if !total_len.is_multiple_of(CHUNK_SIZE) { 1 } else { 0 };
+        let chunk_count = (total_len / CHUNK_SIZE)
+            + if !total_len.is_multiple_of(CHUNK_SIZE) {
+                1
+            } else {
+                0
+            };
 
         let overlap = 200;
 
@@ -279,7 +284,10 @@ impl ContentExtractor {
             let mut end = start + CHUNK_SIZE;
             if end > total_len {
                 end = total_len;
-            } else if let Some(space_pos) = chars[start..end].iter().rposition(|&c| c == ' ' || c == '\n') {
+            } else if let Some(space_pos) = chars[start..end]
+                .iter()
+                .rposition(|&c| c == ' ' || c == '\n')
+            {
                 end = start + space_pos;
             }
 

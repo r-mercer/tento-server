@@ -117,6 +117,7 @@ async fn main() -> std::io::Result<()> {
             .service(handlers::auth_github_callback)
             .service(handlers::refresh_token)
             .service(handlers::logout)
+            .service(handlers::get_csrf_token)
             // Protected routes
             .service(
                 web::scope("")

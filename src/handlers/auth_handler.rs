@@ -33,7 +33,9 @@ fn validate_and_select_redirect_uri(
             return Err(AppError::BadRequest("Invalid redirect_uri".to_string()));
         };
 
-        let is_allowed = allowed_origins.iter().any(|allowed| allowed == &provided_origin);
+        let is_allowed = allowed_origins
+            .iter()
+            .any(|allowed| allowed == &provided_origin);
         if !is_allowed {
             log::warn!("Blocked redirect to unallowed origin: {}", provided_origin);
             return Err(AppError::BadRequest("Redirect URI not allowed".to_string()));
@@ -41,11 +43,15 @@ fn validate_and_select_redirect_uri(
 
         Ok(provided.to_string())
     } else {
-        let allowed_base = allowed_origins.first().cloned().unwrap_or_else(|| {
-            "http://localhost:5173".to_string()
-        });
+        let allowed_base = allowed_origins
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "http://localhost:5173".to_string());
 
-        Ok(format!("{}/auth/callback", allowed_base.trim_end_matches('/')))
+        Ok(format!(
+            "{}/auth/callback",
+            allowed_base.trim_end_matches('/')
+        ))
     }
 }
 
@@ -318,6 +324,12 @@ pub async fn logout(
     }
 
     Ok(HttpResponse::NoContent().finish())
+}
+
+#[get("/auth/csrf-token")]
+pub async fn get_csrf_token(state: web::Data<Arc<AppState>>) -> Result<HttpResponse, AppError> {
+    let csrf_token = state.csrf_state.create_token().await;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "csrf_token": csrf_token })))
 }
 
 #[cfg(test)]

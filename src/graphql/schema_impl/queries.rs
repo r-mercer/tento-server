@@ -4,7 +4,7 @@ use crate::{
     app_state::AppState,
     auth::{
         can_view_quiz_attempt, can_view_quiz_results, extract_claims_from_context, require_admin,
-        require_user_owner, require_quiz_owner,
+        require_quiz_owner, require_user_owner,
     },
     errors::{AppError, AppResult},
     graphql::helpers::{parse_id, validate_quiz_available_for_taking},

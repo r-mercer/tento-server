@@ -126,12 +126,12 @@ impl Config {
             ));
         }
 
-        // if jwt_secret.len() < 32 {
-        //     panic!(
-        //         "FATAL: JWT_SECRET is too short ({}). Must be at least 32 characters for security.",
-        //         jwt_secret.len()
-        //     );
-        // }
+        if jwt_secret.len() < 32 {
+            return Err(AppError::ValidationError(format!(
+                "FATAL: JWT_SECRET is too short ({}). Must be at least 32 characters for security.",
+                jwt_secret.len()
+            )));
+        }
 
         if gh_secret == "gh_client_secret" {
             return Err(AppError::ValidationError(

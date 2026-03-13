@@ -8,4 +8,4 @@ pub use user_handler::{
     health_check_ready, update_user,
 };
 
-pub use auth_handler::{auth_github_callback, logout, refresh_token};
+pub use auth_handler::{auth_github_callback, get_csrf_token, logout, refresh_token};

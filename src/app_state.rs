@@ -5,6 +5,7 @@ use crate::{
     config::Config,
     db::Database,
     errors::AppResult,
+    middleware::{CsrfState, RateLimitConfig, RateLimitState},
     repositories::{
         MongoAgentJobRepository, MongoQuizAttemptRepository, MongoQuizRepository,
         MongoRefreshTokenRepository, MongoSummaryDocumentRepository, MongoUserRepository,
@@ -30,6 +31,8 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub agent_orchestrator: Arc<AgentOrchestrator>,
     pub db: Database,
+    pub csrf_state: CsrfState,
+    pub rate_limit_state: RateLimitState,
 }
 
 impl AppState {
@@ -85,6 +88,8 @@ impl AppState {
             config: Arc::new(config),
             agent_orchestrator,
             db,
+            csrf_state: CsrfState::new(Default::default()),
+            rate_limit_state: RateLimitState::new(RateLimitConfig::default()),
         })
     }
 }

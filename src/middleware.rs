@@ -8,6 +8,12 @@ use actix_web::{
 use futures::future::LocalBoxFuture;
 use uuid::Uuid;
 
+pub mod csrf;
+pub mod rate_limiter;
+
+pub use csrf::{csrf_protector, CsrfConfig, CsrfState};
+pub use rate_limiter::{rate_limiter, RateLimitConfig, RateLimitState};
+
 pub struct RequestIdMiddleware;
 
 impl<S, B> Transform<S, ServiceRequest> for RequestIdMiddleware
